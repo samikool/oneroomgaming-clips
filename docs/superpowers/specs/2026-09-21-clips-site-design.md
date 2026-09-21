@@ -178,7 +178,7 @@ Plain JSON with a short discriminator key.
 { t: "view.start", clipId }
 
 // server → client
-{ t: "hello", userId, serverTime }
+{ t: "hello", username, serverTime }
 { t: "time.sync", t0, t1 }
 { t: "room", rev, state: RoomState }
 { t: "room.controlRequested", user }   // sent to the host only
@@ -191,6 +191,22 @@ Plain JSON with a short discriminator key.
 The clock handshake is named `time.sync`, not `ping`, because `ws` already uses
 protocol-level ping/pong frames for dead-socket detection. Two unrelated
 "ping"s guarantees someone debugs the wrong one.
+
+### Wire identity is the Authentik username, not the ULID
+
+Every `userId` in this envelope is the **`authentik_username`**, not the `users.id`
+ULID. The ULID is an internal surrogate key for foreign keys inside `web`'s database
+and never appears on the wire.
+
+This follows from the topology: `realtime` holds no database connection by design, so
+it cannot resolve a username to a ULID without either a DB handle (which would defeat
+the latency isolation) or a lookup round-trip to `web` on every socket. It is also
+already true in practice — `upsertUser` keys on `authentik_username`, so that column,
+not the ULID, is what actually identifies a person in this system.
+
+**The consequence to accept:** renaming a user in Authentik creates a new identity
+here rather than renaming the existing one. For a fixed group of friends that is a
+non-issue, and it is the behaviour the current upsert already has.
 
 ### Topics
 

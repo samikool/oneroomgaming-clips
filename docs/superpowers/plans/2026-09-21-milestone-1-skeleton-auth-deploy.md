@@ -1492,8 +1492,24 @@ on:
       - "v*"
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run tests
+        run: bun run test
+
   release:
     runs-on: ubuntu-latest
+    needs: test
     permissions:
       contents: write
 
@@ -1559,7 +1575,11 @@ git commit -m "ci: add build/test workflow and tagged release to Docker Hub"
 ```bash
 git tag v0.1.0 && git push origin v0.1.0
 ```
-Expected: the Release workflow succeeds and `samikool/clips:0.1.0` plus `:latest` appear on Docker Hub. Wait for this to go green before starting Task 8 — the compose file pulls this image.
+Expected: the Release workflow succeeds and **`samikool/clips:v0.1.0`** plus `:latest` appear on Docker Hub. The tag carries the `v` prefix because `GITHUB_REF_NAME` for `refs/tags/v0.1.0` is the literal `v0.1.0` — this matches the existing `samikool/*` images published by `~/git/stream-grabber`, which uses the identical extraction step. Do not strip the prefix; consistency with the other images on the account is worth more than a tidier tag.
+
+Wait for this to go green before starting Task 8 — the compose file pulls this image.
+
+**The `dev` branch must exist before the first tag is pushed.** The workflow's final step backmerges `master` into `dev`, and `git fetch origin dev` fails if the branch is absent. Because that step runs *after* the image push and the GitHub release, a missing `dev` produces a half-succeeded release: the image publishes, then the workflow reports failure.
 
 ---
 
