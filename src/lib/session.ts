@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { headers } from "next/headers";
 import {
   MissingAuthHeadersError,
@@ -29,7 +30,7 @@ export function resolveIdentity(
   }
 }
 
-export async function requireUser(): Promise<User> {
+export const requireUser = cache(async function requireUser(): Promise<User> {
   const identity = resolveIdentity(await headers());
   return upsertUser(getDb(), identity);
-}
+});

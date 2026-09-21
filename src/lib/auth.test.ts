@@ -64,9 +64,15 @@ describe("parseAuthentikHeaders", () => {
     expect(parseAuthentikHeaders(headers).username).toBe("sam");
   });
 
-  it("takes the first value when a header arrives as an array", () => {
+  it("takes the first value if a header bag supplies an array (defensive; Node coalesces to a string in practice)", () => {
     const headers = { "x-authentik-username": ["sam", "injected"] };
 
     expect(parseAuthentikHeaders(headers).username).toBe("sam");
+  });
+
+  it("treats a duplicated header coalesced into a comma-joined string as a single junk username (fails safe, matches no real user)", () => {
+    const headers = { "x-authentik-username": "sam, injected" };
+
+    expect(parseAuthentikHeaders(headers).username).toBe("sam, injected");
   });
 });
