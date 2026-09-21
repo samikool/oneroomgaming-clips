@@ -1,0 +1,32 @@
+{
+  "name": "clips",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "bun --bun next dev -H 0.0.0.0",
+    "build": "next build",
+    "start": "next start",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.3",
+    "next": "16.3.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "ulid": "3.0.2",
+    "ws": "8.21.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/bun": "latest",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/ws": "8.18.1",
+    "drizzle-kit": "0.31.11",
+    "tailwindcss": "4.3.3",
+    "typescript": "^5"
+  }
+}
