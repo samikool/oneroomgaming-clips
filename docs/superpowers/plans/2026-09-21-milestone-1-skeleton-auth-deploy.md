@@ -1146,21 +1146,41 @@ const MAX_EMIT_BYTES = 64 * 1024;
 
 const hub = new Hub();
 
+class EmitBodyTooLargeError extends Error {
+  constructor() {
+    super("emit body too large");
+    this.name = "EmitBodyTooLargeError";
+  }
+}
+
 function readBody(request: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let size = 0;
+    let aborted = false;
     const chunks: Buffer[] = [];
 
     request.on("data", (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > MAX_EMIT_BYTES) {
-        reject(new Error("emit body too large"));
-        request.destroy();
+      if (aborted) {
         return;
       }
+
+      size += chunk.length;
+
+      if (size > MAX_EMIT_BYTES) {
+        aborted = true;
+        chunks.length = 0;
+        request.resume();
+        reject(new EmitBodyTooLargeError());
+        return;
+      }
+
       chunks.push(chunk);
     });
-    request.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    request.on("end", () => {
+      if (!aborted) {
+        resolve(Buffer.concat(chunks).toString("utf8"));
+      }
+    });
     request.on("error", reject);
   });
 }
@@ -1175,8 +1195,9 @@ async function handleEmit(request: IncomingMessage, response: ServerResponse) {
     const delivered = hub.broadcast(JSON.parse(await readBody(request)));
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify({ delivered }));
-  } catch {
-    response.writeHead(400).end();
+  } catch (error) {
+    const status = error instanceof EmitBodyTooLargeError ? 413 : 400;
+    response.writeHead(status, { connection: "close" }).end();
   }
 }
 
@@ -1203,10 +1224,10 @@ server.on("upgrade", (request, socket, head) => {
   try {
     username = parseAuthentikHeaders(request.headers).username;
   } catch (error) {
-    if (!(error instanceof MissingAuthHeadersError)) {
-      throw error;
-    }
-    socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+    const status = error instanceof MissingAuthHeadersError
+      ? "401 Unauthorized"
+      : "500 Internal Server Error";
+    socket.write(`HTTP/1.1 ${status}\r\n\r\n`);
     socket.destroy();
     return;
   }
@@ -1224,7 +1245,55 @@ server.listen(PORT, "0.0.0.0", () => {
 });
 ```
 
-The upgrade handler rejects unauthenticated sockets with a raw 401 because at that point there is no `ServerResponse` to write to — the connection has already been hijacked.
+The upgrade handler rejects unauthenticated sockets with a raw 401 because at that point there is no `ServerResponse` to write to — the connection has already been hijacked. It must **not** rethrow on unexpected errors: `upgrade` is a synchronous `EventEmitter` listener, so a throw becomes an uncaught exception and takes down the whole process — every open socket with it. A process whose entire purpose is staying responsive must not have that path.
+
+`readBody` must **not** call `request.destroy()` on an oversized body. `request` and `response` share one TCP socket, so destroying the request tears down the response too and the caller gets a connection reset instead of a diagnosable status. Drain with `request.resume()` instead, drop the buffered chunks, and let the handler write `413`.
+
+- [ ] **Step 9b: Add a regression test for the oversized body**
+
+Create `src/realtime/index.test.ts`. This is the one integration-level test in the service; the pure modules are covered by their own unit tests.
+
+```ts
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+
+const PORT = 3099;
+let server: { stop(): void };
+
+beforeAll(async () => {
+  process.env.EMIT_SECRET = "test-secret";
+  process.env.REALTIME_PORT = String(PORT);
+  server = (await import("./index")).server as unknown as { stop(): void };
+  await Bun.sleep(150);
+});
+
+afterAll(() => {
+  server?.stop?.();
+});
+
+describe("POST /emit", () => {
+  it("answers 413 with a readable response when the body exceeds the cap", async () => {
+    const response = await fetch(`http://localhost:${PORT}/emit`, {
+      method: "POST",
+      headers: { "X-Emit-Secret": "test-secret" },
+      body: "x".repeat(70 * 1024),
+    });
+
+    expect(response.status).toBe(413);
+  });
+
+  it("answers 400 for a body that is not valid JSON", async () => {
+    const response = await fetch(`http://localhost:${PORT}/emit`, {
+      method: "POST",
+      headers: { "X-Emit-Secret": "test-secret" },
+      body: "not json",
+    });
+
+    expect(response.status).toBe(400);
+  });
+});
+```
+
+For this to be importable, `index.ts` must export its server handle (`export const server = createServer(...)`). The oversized-body bug was invisible to the suite precisely because nothing tested this file.
 
 - [ ] **Step 10: Verify the service runs**
 
