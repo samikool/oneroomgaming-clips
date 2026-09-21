@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "bun --bun next dev -H 0.0.0.0",
-    "build": "next build",
-    "start": "next start",
+    "build": "bun --bun next build",
+    "start": "bun --bun next start",
     "test": "bun test",
     "test:watch": "bun test --watch",
     "db:generate": "drizzle-kit generate"
