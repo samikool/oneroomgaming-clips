@@ -1339,8 +1339,17 @@ docs
 data
 *.db
 *.db-*
+.env
+.env.*
 README.md
 ```
+
+The `.env` exclusions are not optional. The builder stage runs `COPY . .` followed by
+`bun run build`, and `next build` inlines any `NEXT_PUBLIC_*` variable into the client
+bundle — which is then copied into the runtime image and served to browsers. Without
+these rules, a stray local `.env` present during a build gets baked into a published
+image. `.gitignore` does not protect you here: Docker's build context is the working
+directory, not the git index.
 
 - [ ] **Step 2: Create the `Dockerfile`**
 
