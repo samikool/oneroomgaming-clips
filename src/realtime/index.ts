@@ -104,6 +104,11 @@ server.on("upgrade", (request, socket, head) => {
   });
 });
 
+if (!EMIT_SECRET) {
+  console.error("EMIT_SECRET is not set — refusing to start. The web process could not reach /emit.");
+  process.exit(1);
+}
+
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`realtime listening on :${PORT}`);
 });
