@@ -26,6 +26,7 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/realtime.js ./realtime.js
 COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/content ./content
 
 EXPOSE 3000 3001
 CMD ["bun", "server.js"]
