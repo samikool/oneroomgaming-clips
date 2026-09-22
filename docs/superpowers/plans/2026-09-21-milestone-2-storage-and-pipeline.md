@@ -688,8 +688,16 @@ export async function probeFile(path: string): Promise<MediaInfo> {
     { stdout: "pipe", stderr: "pipe" },
   );
 
-  const stdout = await new Response(proc.stdout).text();
-  const exitCode = await proc.exited;
+  // Read BOTH pipes concurrently with awaiting exit. A pipe nothing reads
+  // fills and blocks the child forever — a hang with no error, on exactly the
+  // large files this site exists to process. `-v quiet` makes stderr small in
+  // practice, but a flag is not a guarantee: builds still emit deprecation and
+  // codec-capability warnings there.
+  const [stdout, , exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
 
   if (exitCode !== 0) {
     throw new ProbeError(path, `exit code ${exitCode}`);
@@ -860,8 +868,14 @@ async function runFfmpeg(action: string, input: string, args: string[]): Promise
     stderr: "pipe",
   });
 
-  const stderr = await new Response(proc.stderr).text();
-  const exitCode = await proc.exited;
+  // Both pipes are drained concurrently with the exit wait. An unread pipe
+  // fills and blocks ffmpeg indefinitely — a silent hang rather than a failure,
+  // and one that only shows up on large inputs a test fixture never reaches.
+  const [, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
 
   if (exitCode !== 0) {
     throw new TransformError(action, input, stderr.trim() || `exit code ${exitCode}`);
