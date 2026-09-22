@@ -120,3 +120,7 @@ export function listAllClips(db: Db, limit = 100): Clip[] {
 export function getClip(db: Db, id: string): Clip | undefined {
   return db.select().from(clips).where(eq(clips.id, id)).get();
 }
+
+export function deleteClip(db: Db, id: string): void {
+  db.delete(clips).where(eq(clips.id, id)).run();
+}

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import { createDb, type Db } from "@/db/client";
 import { mediaFiles } from "@/db/schema";
 import {
-  applyProbe, createClip, getClip, listAllClips, listReadyClips,
+  applyProbe, createClip, deleteClip, getClip, listAllClips, listReadyClips,
   recordMediaFile, setClipStatus, setClipThumb,
 } from "@/db/clips";
 import type { MediaInfo } from "@/lib/media/probe";
@@ -93,5 +93,12 @@ describe("clip queries", () => {
 
   it("returns undefined for a clip that does not exist", () => {
     expect(getClip(db, "nope")).toBeUndefined();
+  });
+
+  it("removes a clip", () => {
+    const clip = createClip(db, { title: "a", originalFilename: "a.mp4", sizeBytes: 1 });
+    deleteClip(db, clip.id);
+
+    expect(listAllClips(db)).toHaveLength(0);
   });
 });
