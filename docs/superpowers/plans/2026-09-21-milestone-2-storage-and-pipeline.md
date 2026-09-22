@@ -1016,9 +1016,15 @@ describe("job queue", () => {
     for (let i = 0; i < MAX_ATTEMPTS; i += 1) {
       claimNextJob(db);
       failJob(db, job.id, "boom");
+
+      // Pin the boundary from BOTH sides. Asserting only the end state cannot
+      // tell a correct cap from one that trips a cycle early: an early
+      // implementation would fail the job sooner, the remaining iterations
+      // would no-op, and the final assertions would still pass.
+      const expected = i < MAX_ATTEMPTS - 1 ? "queued" : "failed";
+      expect(db.select().from(jobs).get()?.status).toBe(expected);
     }
 
-    expect(db.select().from(jobs).get()?.status).toBe("failed");
     expect(claimNextJob(db)).toBeUndefined();
   });
 });
@@ -1190,6 +1196,20 @@ describe("clip queries", () => {
     expect(updated.width).toBe(1920);
     expect(updated.videoCodec).toBe("h264");
     expect(updated.durationMs).toBe(1500);
+  });
+
+  it("leaves fields it does not own untouched", () => {
+    const clip = createClip(db, { title: "ace", originalFilename: "a.mp4", sizeBytes: 10 });
+    setClipThumb(db, clip.id, "/media/thumbs/x.jpg");
+
+    const updated = applyProbe(db, clip.id, info);
+
+    // applyProbe widening its .set() payload is a plausible future regression,
+    // and nothing else in the suite would notice.
+    expect(updated.title).toBe("ace");
+    expect(updated.status).toBe("pending");
+    expect(updated.thumbPath).toBe("/media/thumbs/x.jpg");
+    expect(updated.createdAt.getTime()).toBe(clip.createdAt.getTime());
   });
 
   it("sets status and clears the error when succeeding", () => {
