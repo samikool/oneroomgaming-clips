@@ -364,7 +364,7 @@ git commit -m "feat: add clips, media, tagging and job schema"
 
 **Interfaces:**
 - Produces:
-  - `function mediaRoot(env?: NodeJS.ProcessEnv): string`
+  - `function mediaRoot(env?: Partial<NodeJS.ProcessEnv>): string`
   - `function incomingDir(env?): string`, `clipsDir(env?): string`, `thumbsDir(env?): string`
   - `function clipFilename(id: string): string` → `"<id>.mp4"`
   - `function thumbFilename(id: string): string` → `"<id>.jpg"`
@@ -424,19 +424,19 @@ Create `src/lib/media/paths.ts`:
 ```ts
 import { join } from "node:path";
 
-export function mediaRoot(env: NodeJS.ProcessEnv = process.env): string {
+export function mediaRoot(env: Partial<NodeJS.ProcessEnv> = process.env): string {
   return env.MEDIA_ROOT ?? "./data/media";
 }
 
-export function incomingDir(env: NodeJS.ProcessEnv = process.env): string {
+export function incomingDir(env: Partial<NodeJS.ProcessEnv> = process.env): string {
   return join(mediaRoot(env), "incoming");
 }
 
-export function clipsDir(env: NodeJS.ProcessEnv = process.env): string {
+export function clipsDir(env: Partial<NodeJS.ProcessEnv> = process.env): string {
   return join(mediaRoot(env), "clips");
 }
 
-export function thumbsDir(env: NodeJS.ProcessEnv = process.env): string {
+export function thumbsDir(env: Partial<NodeJS.ProcessEnv> = process.env): string {
   return join(mediaRoot(env), "thumbs");
 }
 
@@ -1565,7 +1565,7 @@ import type { Job } from "@/db/schema";
 
 export type JobContext = {
   db: Db;
-  env: NodeJS.ProcessEnv;
+  env: Partial<NodeJS.ProcessEnv>;
 };
 
 export type JobHandler = (ctx: JobContext, job: Job) => Promise<void>;

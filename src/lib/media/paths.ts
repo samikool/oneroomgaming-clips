@@ -1,18 +1,18 @@
 import { join } from "node:path";
 
-export function mediaRoot(env: NodeJS.ProcessEnv = process.env): string {
+export function mediaRoot(env: Partial<NodeJS.ProcessEnv> = process.env): string {
   return env.MEDIA_ROOT ?? "./data/media";
 }
 
-export function incomingDir(env: NodeJS.ProcessEnv = process.env): string {
+export function incomingDir(env: Partial<NodeJS.ProcessEnv> = process.env): string {
   return join(mediaRoot(env), "incoming");
 }
 
-export function clipsDir(env: NodeJS.ProcessEnv = process.env): string {
+export function clipsDir(env: Partial<NodeJS.ProcessEnv> = process.env): string {
   return join(mediaRoot(env), "clips");
 }
 
-export function thumbsDir(env: NodeJS.ProcessEnv = process.env): string {
+export function thumbsDir(env: Partial<NodeJS.ProcessEnv> = process.env): string {
   return join(mediaRoot(env), "thumbs");
 }
 

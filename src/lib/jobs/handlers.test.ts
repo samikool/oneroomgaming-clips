@@ -10,7 +10,7 @@ import { handlers, NotImplementedError } from "@/lib/jobs/handlers";
 import { eq } from "drizzle-orm";
 
 let root: string;
-let env: NodeJS.ProcessEnv;
+let env: Partial<NodeJS.ProcessEnv>;
 let db: Db;
 
 async function makeSample(path: string, extraArgs: string[] = []) {

@@ -9,7 +9,7 @@ import { scanIncoming } from "@/lib/ingest/scan";
 
 let root: string;
 let db: Db;
-let env: NodeJS.ProcessEnv;
+let env: Partial<NodeJS.ProcessEnv>;
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "clips-scan-"));
