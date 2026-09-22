@@ -6,11 +6,7 @@ import { readLastSeenVersion, shouldShowChangelog } from "@/lib/changelog-visibi
 const LAST_SEEN_KEY = "clips.changelog.lastSeen";
 
 function readLastSeen(): string | null {
-  try {
-    return window.localStorage.getItem(LAST_SEEN_KEY);
-  } catch {
-    return null;
-  }
+  return window.localStorage.getItem(LAST_SEEN_KEY);
 }
 
 function writeLastSeen(version: string): void {

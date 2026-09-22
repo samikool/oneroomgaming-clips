@@ -15,6 +15,14 @@ export interface ChangelogEntry {
   html: string;
 }
 
+export function formatEntryDate(date: string): string {
+  return new Date(date).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 function parseEntry(filePath: string): ChangelogEntry | null {
   const raw = readFileSync(filePath, "utf-8");
   const parsed = matter(raw);
@@ -69,8 +77,8 @@ export function getChangelogEntries(
       if (entry) {
         entries.push(entry);
       }
-    } catch {
-      // Skip malformed files; a broken entry must not break the whole load.
+    } catch (error) {
+      console.error(`changelog: failed to read ${filename}`, error);
     }
   }
 

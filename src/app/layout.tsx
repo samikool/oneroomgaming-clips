@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ChangelogModal } from "@/components/changelog-modal";
-import { getChangelogEntries } from "@/lib/changelog";
+import { formatEntryDate, getChangelogEntries } from "@/lib/changelog";
 
 export const metadata: Metadata = {
   title: "clips",
@@ -21,11 +21,7 @@ export default function RootLayout({
           <ChangelogModal
             version={latest.version}
             title={latest.title}
-            date={latest.date.toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
+            date={formatEntryDate(latest.date.toISOString())}
             html={latest.html}
           />
         )}
