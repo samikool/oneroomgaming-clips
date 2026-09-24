@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { WebSocketServer } from "ws";
 import { MissingAuthHeadersError, parseAuthentikHeaders } from "@/lib/auth";
+import { parseClientMessage, type ServerMessage } from "@/lib/realtime/envelope";
 import { isAuthorizedEmit } from "./emit-auth";
 import { Hub } from "./hub";
 
@@ -56,7 +57,21 @@ async function handleEmit(request: IncomingMessage, response: ServerResponse) {
   }
 
   try {
-    const delivered = hub.broadcast(JSON.parse(await readBody(request)));
+    const parsed: unknown = JSON.parse(await readBody(request));
+
+    // Only `web` can reach this endpoint, but a malformed body should still be
+    // a clear 400 rather than an object fanned out to every connected socket.
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed) ||
+      typeof (parsed as { t?: unknown }).t !== "string"
+    ) {
+      response.writeHead(400, { connection: "close" }).end();
+      return;
+    }
+
+    const delivered = hub.publish(parsed as ServerMessage);
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify({ delivered }));
   } catch (error) {
@@ -99,8 +114,37 @@ server.on("upgrade", (request, socket, head) => {
   wss.handleUpgrade(request, socket, head, (ws) => {
     hub.add(ws, username);
     ws.send(JSON.stringify({ t: "hello", username, serverTime: Date.now() }));
-    ws.on("close", () => hub.remove(ws));
-    ws.on("error", () => hub.remove(ws));
+    hub.publish({ t: "presence", online: hub.online });
+
+    ws.on("message", (data) => {
+      // A malformed frame from one client must never disturb the process or
+      // the other sockets, so a parse failure is ignored rather than thrown.
+      const message = parseClientMessage(String(data));
+
+      if (message === null) {
+        return;
+      }
+
+      if (message.t === "sub") {
+        hub.subscribe(ws, message.topics);
+        // Send presence straight away; otherwise a fresh subscriber sees
+        // nobody until the next join or leave.
+        ws.send(JSON.stringify({ t: "presence", online: hub.online }));
+        return;
+      }
+
+      // t1 is stamped with the server's clock. Milestone 5's playback sync
+      // computes its offset from this, so a client-supplied t1 is useless.
+      ws.send(JSON.stringify({ t: "time.sync", t0: message.t0, t1: Date.now() }));
+    });
+
+    const drop = () => {
+      hub.remove(ws);
+      hub.publish({ t: "presence", online: hub.online });
+    };
+
+    ws.on("close", drop);
+    ws.on("error", drop);
   });
 });
 
