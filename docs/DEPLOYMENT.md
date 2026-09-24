@@ -241,3 +241,52 @@ DEV_AUTH_USERNAME=localdev EMIT_SECRET=devsecret \
 
 Then a Caddy on :3000 using `dev/Caddyfile`, which serves `/media/*` off disk,
 proxies `/ws*` to 3001 and everything else to 3002.
+
+### Milestone 5 — the theater
+
+Verified on 2026-09-24 against the dev stack.
+
+**Verified by driving the live realtime service with three real identities
+over real sockets** (script pattern kept in the milestone 5 plan; it connects
+with distinct `X-Authentik-Username` headers and asserts on transitions):
+
+- First person in became host; the room stayed paused with no clip.
+- `presence.inRoom` tracked both members.
+- Host set a clip: title and duration arrived on the wire, `paused=false`.
+- **A follower's `room.control` was dropped in silence** — `rev` advanced by
+  exactly one across the follower's pause and the host's seek, so the pause
+  produced no snapshot at all.
+- `room.controlRequested` reached the host alone; a bystander subscribed to
+  `room` never saw it.
+- A second request inside `REQUEST_CONTROL_COOLDOWN_MS` produced nothing.
+- Handoff did not interrupt playback (`paused` stayed false).
+- Host socket dropped: room went hostless and paused, and the playhead froze
+  at 1804 ms — 304 ms of real wall-clock time past the 1500 ms seek, which is
+  the freeze computing against the server's own clock rather than the anchor.
+- Another member then claimed the empty chair.
+
+**Verified by request:**
+
+- `/`, `/theater`, `/upload`, `/changelog` all served 200 **with the realtime
+  service stopped**, the dock rendered its idle state, the theater said
+  "Nothing is playing", and the Next log showed no unhandled rejection and no
+  500 across 39 subsequent requests.
+- The realtime process still boots standalone (`bun src/realtime/index.ts`),
+  proving the Room dragged no `web` imports across the process boundary.
+
+**NOT verified — needs a browser, which this session had none:**
+
+- One socket per tab. The refactor is in place and the server side is tested,
+  but `/healthz` only ever read `sockets: 0` here because nothing opened a tab.
+- Dock click behaviour: Join, Leave, × collapsing to the badge, and the pulse.
+- Follower clicking a greyed-out control actually sending the request (the
+  `readOnly`-not-`disabled` scrubber is the load-bearing detail).
+- Fullscreen putting the watching list **over** the video, the overlay
+  auto-hiding after 3 s, and Escape returning the button to "Fullscreen".
+  The DOM nesting was checked statically: the `<video>` and the overlay panel
+  are both descendants of the element passed to `requestFullscreen()`.
+- Observed drift between two real players.
+
+Room state is in memory and is **lost on every realtime restart**, by design.
+A deploy that recreates the realtime container empties the theater; whoever is
+watching is dropped back to a hostless, empty room and rejoins.
