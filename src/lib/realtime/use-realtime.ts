@@ -1,32 +1,29 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { createRealtimeClient } from "./client";
 import type { ServerMessage, Topic } from "./envelope";
+import { useRealtimeContext } from "./provider";
 
 /**
- * Holds one socket for as long as the component is mounted.
+ * Subscribes this component to the tab's shared socket for as long as it is
+ * mounted.
  *
  * The handler lives in a ref so a caller passing an inline arrow — which is
- * every caller — does not tear the socket down and rebuild it on each render.
+ * every caller — does not re-register on each render.
  */
 export function useRealtime(topics: Topic[], handler: (message: ServerMessage) => void): void {
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
 
+  const { register } = useRealtimeContext();
   const key = topics.join(",");
 
-  useEffect(() => {
-    const scheme = location.protocol === "https:" ? "wss" : "ws";
-    const client = createRealtimeClient({
-      url: `${scheme}://${location.host}/ws`,
-      topics: key.split(",") as Topic[],
-    });
-    const off = client.on((message) => handlerRef.current(message));
-
-    return () => {
-      off();
-      client.close();
-    };
-  }, [key]);
+  useEffect(
+    () =>
+      register({
+        topics: key.split(",") as Topic[],
+        handler: (message) => handlerRef.current(message),
+      }),
+    [register, key],
+  );
 }

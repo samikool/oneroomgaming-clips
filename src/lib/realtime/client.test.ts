@@ -165,4 +165,37 @@ describe("createRealtimeClient", () => {
     expect(JSON.parse(sockets[1].sent[0])).toEqual({ t: "sub", topics: ["grid", "user"] });
     client.close();
   });
+
+  it("sends an arbitrary client message over the open socket", () => {
+    const socket = new FakeSocket();
+    const client = createRealtimeClient({
+      url: "ws://x/ws",
+      topics: ["room"],
+      socketFactory: () => socket,
+      delayFor: () => 1,
+    });
+    socket.open();
+    socket.sent.length = 0;
+
+    client.send({ t: "sub", topics: ["room"] });
+
+    expect(JSON.parse(socket.sent[0])).toEqual({ t: "sub", topics: ["room"] });
+    client.close();
+  });
+
+  it("drops a send while the socket is down rather than throwing", () => {
+    // A user clicking Play during a reconnect must not get an exception; the
+    // snapshot that follows a reconnect corrects them anyway.
+    const client = createRealtimeClient({
+      url: "ws://x/ws",
+      topics: ["room"],
+      socketFactory: () => {
+        throw new Error("cannot connect");
+      },
+      delayFor: () => 1,
+    });
+
+    expect(() => client.send({ t: "sub", topics: ["room"] })).not.toThrow();
+    client.close();
+  });
 });

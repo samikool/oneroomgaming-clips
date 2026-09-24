@@ -1,4 +1,4 @@
-import type { ServerMessage, Topic } from "./envelope";
+import type { ClientMessage, ServerMessage, Topic } from "./envelope";
 
 export type SocketLike = {
   send(data: string): void;
@@ -10,6 +10,7 @@ export type SocketLike = {
 
 export type RealtimeClient = {
   subscribe(topics: Topic[]): void;
+  send(message: ClientMessage): void;
   on(handler: (message: ServerMessage) => void): () => void;
   close(): void;
 };
@@ -49,7 +50,18 @@ export function createRealtimeClient(options: {
       return;
     }
 
-    const next = factory(options.url);
+    let next: SocketLike;
+
+    try {
+      next = factory(options.url);
+    } catch {
+      // A constructor that throws (blocked URL, no network) must behave like a
+      // socket that opened and closed: retry, never propagate to the caller.
+      timer = setTimeout(connect, delayFor(attempt));
+      attempt += 1;
+      return;
+    }
+
     socket = next;
 
     next.onopen = () => {
@@ -89,6 +101,15 @@ export function createRealtimeClient(options: {
     subscribe(next: Topic[]) {
       topics = next;
       socket?.send(JSON.stringify({ t: "sub", topics }));
+    },
+    send(message: ClientMessage) {
+      // Best effort by design. The socket may be mid-reconnect; the snapshot
+      // that follows a reconnect makes a dropped command self-correcting.
+      try {
+        socket?.send(JSON.stringify(message));
+      } catch {
+        // The socket is closing. The reconnect path already handles it.
+      }
     },
     on(handler) {
       handlers.add(handler);
