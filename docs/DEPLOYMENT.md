@@ -424,3 +424,84 @@ Or open a second browser with that env set. The override and the
 `DEV_AUTH_USERNAME` fallback are both dead in production: `NODE_ENV=production`
 is set in the Dockerfile and in both compose services, and a request with no
 `X-Authentik-Username` throws there regardless of what the query string says.
+
+## Staging — dev.clips.oneroomgaming.com
+
+Rolling deployment of the `dev` branch. Design:
+`docs/superpowers/specs/2026-09-24-staging-environment-design.md`.
+
+### The flow
+
+```
+branch off dev ──▶ merge to dev as feat:/fix:/docs: ──▶ staging (auto, ~60s)
+                        │
+                        ├─ manual: bump package.json + content/changelog/<v>.md
+                        └─ tag v0.2.0 on dev ──▶ release.yml
+                                                  ├─ verify tag == package.json
+                                                  ├─ push :0.2.0 and :latest
+                                                  ├─ GitHub release
+                                                  └─ fast-forward master
+                                                          │
+                                        ./do.sh update clips   (manual)
+```
+
+**`master` is always exactly what production is running.** `git diff master..dev`
+is "on staging, not yet released". The release pushes master **without
+`--force`**, so a direct commit to master makes it fail loudly rather than be
+clobbered.
+
+There are **no dev tags**. Pushing to `dev` republishes the fixed image tag
+`samikool/clips:dev`, overwriting it. Git tags are only ever releases.
+
+### Two stacks
+
+| | production | staging |
+|---|---|---|
+| folder | `containers/clips` | `containers/clips-dev` |
+| image | `samikool/clips:latest` | `samikool/clips:dev` |
+| containers | `clips-web`, `clips-realtime` | `clips-dev-web`, `clips-dev-realtime` |
+| volume | `clips-data` | `clips-dev-data` |
+| media | `/home/sam/clips-media` | `/home/sam/clips-media-dev` |
+| updated by | `./do.sh update clips` (manual) | watchtower (60s) |
+
+Production is **never** auto-updated: watchtower only touches containers
+carrying `com.centurylinklabs.watchtower.enable=true`, and production has no
+such label. Opt-in by label, so a container added later is safe by default.
+
+### Naming trap
+
+Three similarly-named things:
+
+- `clips-dev-preview` — the **local** `caddy:2` container on port 3000, for the
+  dev server running on this machine. Nothing to do with staging.
+- `clips-dev-web` / `clips-dev-realtime` — the **staging** stack behind
+  `dev.clips.oneroomgaming.com`.
+- `clips-web` / `clips-realtime` — **production**.
+
+### Gotchas
+
+- `CLIPS_DEV_MEDIA_DIR` must be identical in **both** `clips-dev/.env` and
+  `caddy/.env` — compose reads `.env` per-folder. A mismatch does not error;
+  Caddy just 404s every video while the app reports clips as `ready`.
+- The staging Caddy vhost roots media at **`/srv-dev`**, not `/srv`. The app
+  emits `/media/clips/<id>` in both environments, so only the root
+  distinguishes them. `/srv` there would serve production's video on staging.
+- Staging has its **own `EMIT_SECRET`**. Both stacks share the `proxy` network,
+  so a shared secret would let a broken staging build inject events into
+  production's sockets.
+- Staging's room state and chat backlog are wiped on every deploy. In-memory by
+  design; just more visible here.
+
+### One-time setup (done)
+
+DNS: `dev.clips.oneroomgaming.com` A record, grey cloud.
+
+Authentik, in the UI:
+1. group `clips-dev`
+2. Proxy Provider for `https://dev.clips.oneroomgaming.com`, forward-auth
+   single application
+3. Application bound to it, policy binding to the `clips-dev` group
+4. add the provider to the existing `oneroomgaming` outpost
+
+Bound to a **group**, not a user, so inviting a friend to test later is a
+membership change with no config edit.
