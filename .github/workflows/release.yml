@@ -15,6 +15,12 @@ jobs:
         with:
           bun-version: latest
 
+      # The pipeline tests spawn real ffmpeg and ffprobe; the runner has
+      # neither. This job gates the release, so without it a tag fails before
+      # it builds anything.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 

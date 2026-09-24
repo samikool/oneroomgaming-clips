@@ -17,6 +17,14 @@ jobs:
         with:
           bun-version: latest
 
+      # The pipeline tests spawn real ffmpeg and ffprobe rather than mocking
+      # them: what they assert is faststart/moov placement and codec probing,
+      # which a mock cannot tell you anything about. The runner has neither
+      # binary preinstalled, so they go in here. The Dockerfile installs them
+      # separately for the runtime image.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
