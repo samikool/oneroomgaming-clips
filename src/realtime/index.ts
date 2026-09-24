@@ -8,6 +8,8 @@ import {
 } from "@/lib/realtime/envelope";
 import { isAuthorizedEmit } from "./emit-auth";
 import { Hub } from "./hub";
+import { CHAT_COOLDOWN_MS, ChatLog, REACTION_COOLDOWN_MS } from "./chat-log";
+import { RateLimiter } from "./rate-limit";
 import { Room } from "./room";
 
 const PORT = Number(process.env.REALTIME_PORT ?? 3001);
@@ -16,6 +18,9 @@ const MAX_EMIT_BYTES = 64 * 1024;
 
 const hub = new Hub();
 const room = new Room();
+const chatLog = new ChatLog();
+const chatLimiter = new RateLimiter(CHAT_COOLDOWN_MS);
+const reactionLimiter = new RateLimiter(REACTION_COOLDOWN_MS);
 
 class EmitBodyTooLargeError extends Error {
   constructor() {
@@ -136,6 +141,25 @@ function handleRoomMessage(username: string, message: ClientMessage): void {
 
       return;
 
+    case "chat.send": {
+      // A refused message is dropped in silence. The sender's composer has
+      // already cleared; telling them they typed too fast is noise.
+      if (!chatLimiter.take(username)) {
+        return;
+      }
+
+      hub.publish({ t: "chat", message: chatLog.add(username, message.text) });
+      return;
+    }
+
+    case "reaction.send":
+      if (!reactionLimiter.take(username)) {
+        return;
+      }
+
+      hub.publish({ t: "reaction", user: username, emoji: message.emoji, at: Date.now() });
+      return;
+
     default:
       return;
   }
@@ -194,6 +218,7 @@ server.on("upgrade", (request, socket, head) => {
 
         if (message.topics.includes("room")) {
           ws.send(JSON.stringify({ t: "room", state: room.state }));
+          ws.send(JSON.stringify({ t: "chat.backlog", messages: chatLog.messages }));
         }
 
         return;

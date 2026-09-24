@@ -66,10 +66,11 @@ describe("parseClientMessage", () => {
   });
 
   it("rejects an unknown message type", () => {
-    // `room.control` stood here while milestone 5 was unimplemented. Chat and
-    // reactions are the next names reserved-but-not-built.
-    expect(parseClientMessage('{"t":"chat.send","text":"hi"}')).toBeNull();
-    expect(parseClientMessage('{"t":"reaction.send","emoji":"🔥"}')).toBeNull();
+    // `room.control` stood here for milestone 5, then chat.send and
+    // reaction.send for milestone 6. `view.start` is the last envelope name
+    // still reserved and unbuilt.
+    expect(parseClientMessage('{"t":"view.start","clipId":"01A"}')).toBeNull();
+    expect(parseClientMessage('{"t":"nonsense"}')).toBeNull();
   });
 
   it("rejects a subscribe naming an unknown topic", () => {
@@ -185,5 +186,72 @@ describe("topicsFor — room messages", () => {
 
   it("routes a control request to the room topic", () => {
     expect(topicsFor({ t: "room.controlRequested", user: "sam" })).toEqual(["room"]);
+  });
+});
+
+describe("parseClientMessage — chat and reactions", () => {
+  it("accepts a chat message and trims it", () => {
+    expect(parseClientMessage(JSON.stringify({ t: "chat.send", text: "  nice  " }))).toEqual({
+      t: "chat.send",
+      text: "nice",
+    });
+  });
+
+  it("rejects an empty chat message", () => {
+    expect(parseClientMessage(JSON.stringify({ t: "chat.send", text: "   " }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ t: "chat.send" }))).toBeNull();
+  });
+
+  it("accepts a reaction from the allowlist", () => {
+    expect(parseClientMessage(JSON.stringify({ t: "reaction.send", emoji: "🔥" }))).toEqual({
+      t: "reaction.send",
+      emoji: "🔥",
+    });
+  });
+
+  it("rejects a reaction outside the allowlist", () => {
+    expect(parseClientMessage(JSON.stringify({ t: "reaction.send", emoji: "🦄" }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ t: "reaction.send", emoji: "<img>" }))).toBeNull();
+  });
+});
+
+describe("topicsFor — social messages", () => {
+  const chatMessage = { id: "c1", user: "sam", text: "hi", at: 1 };
+
+  it("routes chat to the room topic", () => {
+    expect(topicsFor({ t: "chat", message: chatMessage })).toEqual(["room"]);
+    expect(topicsFor({ t: "chat.backlog", messages: [chatMessage] })).toEqual(["room"]);
+  });
+
+  it("routes reactions to the room topic", () => {
+    expect(topicsFor({ t: "reaction", user: "sam", emoji: "🔥", at: 1 })).toEqual(["room"]);
+  });
+
+  it("routes a new comment to the grid topic", () => {
+    // Topics are a fixed enum; a per-clip topic would need parameterised
+    // subscriptions the hub does not have. The browser filters by clipId.
+    const comment = { id: "1", clipId: "01A", user: "sam", body: "gg", at: 1, deleted: false };
+    expect(topicsFor({ t: "comment.added", comment })).toEqual(["grid"]);
+  });
+});
+
+describe("isEphemeral — social messages", () => {
+  const chatMessage = { id: "c1", user: "sam", text: "hi", at: 1 };
+
+  it("treats reactions as droppable", () => {
+    expect(isEphemeral({ t: "reaction", user: "sam", emoji: "🔥", at: 1 })).toBe(true);
+  });
+
+  it("never drops chat", () => {
+    // The spec is explicit: backpressure drops reactions and progress ticks,
+    // never room state or chat. A slow client degrades; it does not lose the
+    // conversation.
+    expect(isEphemeral({ t: "chat", message: chatMessage })).toBe(false);
+    expect(isEphemeral({ t: "chat.backlog", messages: [chatMessage] })).toBe(false);
+  });
+
+  it("never drops a comment", () => {
+    const comment = { id: "1", clipId: "01A", user: "sam", body: "gg", at: 1, deleted: false };
+    expect(isEphemeral({ t: "comment.added", comment })).toBe(false);
   });
 });

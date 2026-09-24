@@ -7,6 +7,9 @@ import type { ClipSummary } from "@/lib/realtime/envelope";
 import { createSyncController, type SyncController } from "@/lib/theater/sync-controller";
 import { useRoom } from "@/lib/theater/use-room";
 import { TheaterTransport } from "./theater-transport";
+import { ReactionBar } from "./reaction-bar";
+import { ReactionStream } from "./reaction-stream";
+import { TheaterChat } from "./theater-chat";
 import { WatchingList } from "./watching-list";
 
 type Tab = "chat" | "watching";
@@ -14,7 +17,7 @@ type Tab = "chat" | "watching";
 const RESYNC_TOAST_MS = 2_500;
 
 export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
-  const { view, clock, send, dismiss } = useRoom();
+  const { view, chat, reactions, clock, send, dismiss } = useRoom();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controllerRef = useRef<SyncController | null>(null);
   const [tab, setTab] = useState<Tab>("watching");
@@ -123,6 +126,14 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
     }
   }
 
+  function sendChat(text: string): void {
+    send({ t: "chat.send", text });
+  }
+
+  function react(emoji: string): void {
+    send({ t: "reaction.send", emoji });
+  }
+
   function tapToSync(): void {
     setNeedsGesture(false);
     // The gesture is the point: this call is inside a click handler, so the
@@ -176,6 +187,7 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
                 // the room's and sends no room.control.
                 controls={false}
               />
+              <ReactionStream reactions={reactions} />
               <TheaterTransport
                 state={state}
                 clock={clock}
@@ -185,6 +197,7 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
                 onSeek={(positionMs) => send({ t: "room.control", action: "seek", positionMs })}
                 onRequestControl={() => send({ t: "room.requestControl" })}
               />
+              <ReactionBar onReact={react} />
               <button
                 type="button"
                 className="button-secondary mt-2"
@@ -252,8 +265,7 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
                   onGiveControl={(user) => send({ t: "room.giveControl", userId: user })}
                   onClaimHost={() => send({ t: "room.claimHost" })}
                 />
-                {/* Chat overlays here in the next milestone. Its input must not
-                    swallow Escape, which is how the browser exits fullscreen. */}
+                <TheaterChat messages={chat} me={me} onSend={sendChat} compact />
               </div>
             </div>
           )}
@@ -277,7 +289,7 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
             </button>
           </div>
           {tab === "chat" ? (
-            <p className="p-4 text-sm text-ink-muted">Chat arrives in the next release.</p>
+            <TheaterChat messages={chat} me={me} onSend={sendChat} />
           ) : (
             <WatchingList
               inRoom={view.inRoom}

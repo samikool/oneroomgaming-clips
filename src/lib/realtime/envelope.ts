@@ -1,3 +1,7 @@
+import { isReaction, normalizeChatText, type ChatMessage } from "./chat";
+
+export type { ChatMessage } from "./chat";
+
 export const TOPICS = ["grid", "user", "room"] as const;
 export type Topic = (typeof TOPICS)[number];
 
@@ -33,6 +37,17 @@ export type RoomState = {
   rev: number;
 };
 
+/** A comment as it travels on the wire. `user` is the Authentik username. */
+export type CommentSummary = {
+  id: string;
+  clipId: string;
+  user: string;
+  body: string;
+  /** Milliseconds since the epoch. A Date would arrive as a string over JSON. */
+  at: number;
+  deleted: boolean;
+};
+
 export const ROOM_ACTIONS = ["play", "pause", "seek", "setClip"] as const;
 export type RoomAction = (typeof ROOM_ACTIONS)[number];
 
@@ -42,6 +57,10 @@ export type ServerMessage =
   | { t: "presence"; online: string[]; inRoom: string[] }
   | { t: "room"; state: RoomState }
   | { t: "room.controlRequested"; user: string }
+  | { t: "chat"; message: ChatMessage }
+  | { t: "chat.backlog"; messages: ChatMessage[] }
+  | { t: "reaction"; user: string; emoji: string; at: number }
+  | { t: "comment.added"; comment: CommentSummary }
   | { t: "clip.added"; clip: ClipSummary }
   | { t: "clip.updated"; clip: ClipSummary }
   | { t: "upload.progress"; uploadId: string; pct: number; user: string };
@@ -61,7 +80,9 @@ export type ClientMessage =
       clipId?: string;
       title?: string;
       durationMs?: number | null;
-    };
+    }
+  | { t: "chat.send"; text: string }
+  | { t: "reaction.send"; emoji: string };
 
 /**
  * Which topics a message belongs to.
@@ -80,7 +101,12 @@ export function topicsFor(message: ServerMessage): Topic[] {
       return ["grid", "room"];
     case "room":
     case "room.controlRequested":
+    case "chat":
+    case "chat.backlog":
+    case "reaction":
       return ["room"];
+    // comment.added falls through to grid on purpose: topics are a fixed
+    // enum, and the browser filters by clipId.
     default:
       return ["grid"];
   }
@@ -92,7 +118,9 @@ export function topicsFor(message: ServerMessage): Topic[] {
  * is not: a client that misses "this clip is ready" never recovers on its own.
  */
 export function isEphemeral(message: ServerMessage): boolean {
-  return message.t === "upload.progress" || message.t === "presence";
+  return (
+    message.t === "upload.progress" || message.t === "presence" || message.t === "reaction"
+  );
 }
 
 function isTopic(value: unknown): value is Topic {
@@ -181,6 +209,15 @@ export function parseClientMessage(raw: string): ClientMessage | null {
 
   if (message.t === "room.control") {
     return parseRoomControl(message);
+  }
+
+  if (message.t === "chat.send") {
+    const text = normalizeChatText(message.text);
+    return text === null ? null : { t: "chat.send", text };
+  }
+
+  if (message.t === "reaction.send") {
+    return isReaction(message.emoji) ? { t: "reaction.send", emoji: message.emoji } : null;
   }
 
   return null;

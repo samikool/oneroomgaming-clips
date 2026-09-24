@@ -300,3 +300,103 @@ describe("room over the socket", () => {
     watcher.close();
   });
 });
+
+describe("chat and reactions over the socket", () => {
+  it("fans a chat message out to the room", async () => {
+    const sender = await joinRoomTopic("chat-sender");
+    const listener = await joinRoomTopic("chat-listener");
+    sender.send(JSON.stringify({ t: "chat.send", text: "gg" }));
+
+    const message = await waitFor(
+      listener,
+      (m) => m.t === "chat" && (m.message as Record<string, unknown>).text === "gg",
+    );
+    expect((message.message as Record<string, unknown>).user).toBe("chat-sender");
+    sender.close();
+    listener.close();
+  });
+
+  it("does not send chat to a grid-only subscriber", async () => {
+    const gridOnly = connect("chat-gridonly");
+    await waitFor(gridOnly, (m) => m.t === "hello");
+    gridOnly.send(JSON.stringify({ t: "sub", topics: ["grid"] }));
+    await waitFor(gridOnly, (m) => m.t === "presence");
+
+    let sawChat = false;
+    gridOnly.addEventListener("message", (event) => {
+      if ((JSON.parse(String(event.data)) as { t: string }).t === "chat") {
+        sawChat = true;
+      }
+    });
+
+    const sender = await joinRoomTopic("chat-elsewhere");
+    sender.send(JSON.stringify({ t: "chat.send", text: "not for the grid" }));
+    await waitFor(sender, (m) => m.t === "chat");
+    await Bun.sleep(100);
+
+    expect(sawChat).toBe(false);
+    gridOnly.close();
+    sender.close();
+  });
+
+  it("hands a new room subscriber the backlog", async () => {
+    const speaker = await joinRoomTopic("backlog-speaker");
+    speaker.send(JSON.stringify({ t: "chat.send", text: "said before you arrived" }));
+    await waitFor(speaker, (m) => m.t === "chat");
+
+    const latecomer = connect("backlog-latecomer");
+    await waitFor(latecomer, (m) => m.t === "hello");
+    latecomer.send(JSON.stringify({ t: "sub", topics: ["room"] }));
+
+    const backlog = await waitFor(latecomer, (m) => m.t === "chat.backlog");
+    const texts = (backlog.messages as { text: string }[]).map((m) => m.text);
+    expect(texts).toContain("said before you arrived");
+    speaker.close();
+    latecomer.close();
+  });
+
+  it("rate-limits a burst of chat from one user", async () => {
+    const ws = await joinRoomTopic("chat-flooder");
+    let delivered = 0;
+    ws.addEventListener("message", (event) => {
+      if ((JSON.parse(String(event.data)) as { t: string }).t === "chat") {
+        delivered += 1;
+      }
+    });
+
+    for (let i = 0; i < 5; i += 1) {
+      ws.send(JSON.stringify({ t: "chat.send", text: `flood ${i}` }));
+    }
+
+    await Bun.sleep(300);
+    expect(delivered).toBe(1);
+    ws.close();
+  });
+
+  it("fans a reaction out with its author", async () => {
+    const sender = await joinRoomTopic("react-sender");
+    const listener = await joinRoomTopic("react-listener");
+    sender.send(JSON.stringify({ t: "reaction.send", emoji: "🔥" }));
+
+    const message = await waitFor(listener, (m) => m.t === "reaction");
+    expect(message).toMatchObject({ t: "reaction", user: "react-sender", emoji: "🔥" });
+    sender.close();
+    listener.close();
+  });
+
+  it("ignores a reaction outside the allowlist", async () => {
+    const ws = await joinRoomTopic("react-cheater");
+    let sawReaction = false;
+    ws.addEventListener("message", (event) => {
+      if ((JSON.parse(String(event.data)) as { t: string }).t === "reaction") {
+        sawReaction = true;
+      }
+    });
+
+    ws.send(JSON.stringify({ t: "reaction.send", emoji: "<script>alert(1)</script>" }));
+    await Bun.sleep(150);
+
+    expect(sawReaction).toBe(false);
+    ws.close();
+  });
+});

@@ -1,5 +1,6 @@
 import type { ClientMessage, RoomState } from "@/lib/realtime/envelope";
 import { INITIAL_ROOM_STATE, positionNow } from "@/lib/realtime/room-state";
+import { RateLimiter } from "./rate-limit";
 
 export type RoomControl = Extract<ClientMessage, { t: "room.control" }>;
 
@@ -26,11 +27,12 @@ export const REQUEST_CONTROL_COOLDOWN_MS = 10_000;
 export class Room {
   #state: RoomState = { ...INITIAL_ROOM_STATE };
   readonly #members = new Set<string>();
-  readonly #lastRequest = new Map<string, number>();
+  readonly #requestLimiter: RateLimiter;
   readonly #now: () => number;
 
   constructor(now: () => number = Date.now) {
     this.#now = now;
+    this.#requestLimiter = new RateLimiter(REQUEST_CONTROL_COOLDOWN_MS, now);
   }
 
   get state(): RoomState {
@@ -148,14 +150,6 @@ export class Room {
       return null;
     }
 
-    const now = this.#now();
-    const last = this.#lastRequest.get(user);
-
-    if (last !== undefined && now - last < REQUEST_CONTROL_COOLDOWN_MS) {
-      return null;
-    }
-
-    this.#lastRequest.set(user, now);
-    return host;
+    return this.#requestLimiter.take(user) ? host : null;
   }
 }
