@@ -1,10 +1,12 @@
+import { Dock } from "@/components/dock";
 import { RealtimeProvider } from "@/lib/realtime/provider";
 
-/**
- * Everything that needs the shared socket lives inside here. The dock joins it
- * in a later task; for now the shell exists so that wiring lands in one commit
- * rather than being threaded through the layout twice.
- */
-export function AppShell({ children }: { me: string; children: React.ReactNode }) {
-  return <RealtimeProvider>{children}</RealtimeProvider>;
+export function AppShell({ me, children }: { me: string; children: React.ReactNode }) {
+  return (
+    <RealtimeProvider>
+      {/* Room for the fixed dock, so it never covers the last row of the grid. */}
+      <div className="pb-24">{children}</div>
+      <Dock me={me} />
+    </RealtimeProvider>
+  );
 }
