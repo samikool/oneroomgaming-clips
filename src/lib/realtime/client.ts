@@ -100,7 +100,17 @@ export function createRealtimeClient(options: {
   return {
     subscribe(next: Topic[]) {
       topics = next;
-      socket?.send(JSON.stringify({ t: "sub", topics }));
+
+      // Best effort, exactly like send(). A socket that exists but has not
+      // opened yet is in CONNECTING and throws InvalidStateError — which is
+      // the normal case, because the provider registers components on mount,
+      // before onopen fires. Swallowing it is safe only because onopen
+      // re-sends whatever the caller last asked for.
+      try {
+        socket?.send(JSON.stringify({ t: "sub", topics }));
+      } catch {
+        // Delivered by onopen instead.
+      }
     },
     send(message: ClientMessage) {
       // Best effort by design. The socket may be mid-reconnect; the snapshot

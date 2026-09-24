@@ -199,3 +199,68 @@ describe("createRealtimeClient", () => {
     client.close();
   });
 });
+
+describe("createRealtimeClient — subscribing before the socket opens", () => {
+  /** A socket that throws on send until it has opened, like a real one. */
+  class ConnectingSocket extends FakeSocket {
+    opened = false;
+
+    send(data: string) {
+      if (!this.opened) {
+        throw new DOMException("still in CONNECTING state", "InvalidStateError");
+      }
+
+      super.send(data);
+    }
+
+    open() {
+      this.opened = true;
+      super.open();
+    }
+  }
+
+  it("does not throw when subscribing before the socket is open", () => {
+    // The provider registers components on mount, which is before onopen.
+    const socket = new ConnectingSocket();
+    const client = createRealtimeClient({
+      url: "ws://x/ws",
+      topics: ["grid"],
+      socketFactory: () => socket,
+      delayFor: () => 1,
+    });
+
+    expect(() => client.subscribe(["grid", "room"])).not.toThrow();
+    client.close();
+  });
+
+  it("sends the topics it could not deliver once the socket opens", () => {
+    // Swallowing the error is only safe because onopen re-sends whatever the
+    // caller last asked for.
+    const socket = new ConnectingSocket();
+    const client = createRealtimeClient({
+      url: "ws://x/ws",
+      topics: ["grid"],
+      socketFactory: () => socket,
+      delayFor: () => 1,
+    });
+
+    client.subscribe(["grid", "room"]);
+    socket.open();
+
+    expect(JSON.parse(socket.sent[0])).toEqual({ t: "sub", topics: ["grid", "room"] });
+    client.close();
+  });
+
+  it("does not throw when sending before the socket is open", () => {
+    const socket = new ConnectingSocket();
+    const client = createRealtimeClient({
+      url: "ws://x/ws",
+      topics: ["room"],
+      socketFactory: () => socket,
+      delayFor: () => 1,
+    });
+
+    expect(() => client.send({ t: "room.join" })).not.toThrow();
+    client.close();
+  });
+});
