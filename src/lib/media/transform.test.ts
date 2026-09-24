@@ -18,7 +18,7 @@ beforeAll(async () => {
   await run([
     "ffmpeg", "-loglevel", "error",
     "-f", "lavfi", "-i", "testsrc=duration=2:size=320x240:rate=10",
-    "-c:v", "libx264", sample,
+    "-c:v", "libx264", "-pix_fmt", "yuv420p", sample,
   ]);
 });
 

@@ -27,7 +27,7 @@ const probe: JobHandler = async (ctx, job) => {
   const info = await probeFile(incomingPath(ctx, job.clipId));
   applyProbe(ctx.db, job.clipId, info);
 
-  if (!isBrowserPlayable(info.videoCodec, info.audioCodec)) {
+  if (!isBrowserPlayable(info.videoCodec, info.audioCodec, info.pixelFormat)) {
     setClipStatus(
       ctx.db,
       job.clipId,

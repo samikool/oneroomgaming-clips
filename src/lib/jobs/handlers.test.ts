@@ -17,7 +17,7 @@ async function makeSample(path: string, extraArgs: string[] = []) {
   const proc = Bun.spawn([
     "ffmpeg", "-loglevel", "error", "-y",
     "-f", "lavfi", "-i", "testsrc=duration=2:size=320x240:rate=10",
-    "-c:v", "libx264", ...extraArgs, path,
+    "-c:v", "libx264", "-pix_fmt", "yuv420p", ...extraArgs, path,
   ], { stdout: "pipe", stderr: "pipe" });
   await proc.exited;
 }
@@ -124,5 +124,29 @@ describe("transcode handler", () => {
     const job = enqueueJob(db, clip.id, "transcode");
 
     expect(handlers.transcode({ db, env }, job)).rejects.toThrow(NotImplementedError);
+  });
+});
+
+describe("probe handler (unplayable pixel format)", () => {
+  it("marks a 4:4:4 clip needs_transcode even though it is h264", () => {
+    // This is not hypothetical: three clips generated exactly this way sat in
+    // the dev library marked `ready` and showed a black player.
+    return (async () => {
+      const clip = createClip(db, {
+        id: "01PIXFMT",
+        title: "4:4:4",
+        originalFilename: "444.mp4",
+        sizeBytes: 1,
+      });
+      await makeSample(join(root, "incoming", "01PIXFMT.mp4"), ["-pix_fmt", "yuv444p"]);
+      enqueueJob(db, clip.id, "probe");
+      const job = claimNextJob(db)!;
+
+      await handlers.probe({ db, env }, job);
+
+      const updated = db.select().from(clipsTable).where(eq(clipsTable.id, clip.id)).get();
+      expect(updated?.videoCodec).toBe("h264");
+      expect(updated?.status).toBe("needs_transcode");
+    })();
   });
 });

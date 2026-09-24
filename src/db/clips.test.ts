@@ -13,7 +13,7 @@ import type { MediaInfo } from "@/lib/media/probe";
 
 const info: MediaInfo = {
   durationMs: 1500, width: 1920, height: 1080, videoCodec: "h264",
-  audioCodec: "aac", bitrate: 5_000_000, container: "mov,mp4", sizeBytes: 4242,
+  audioCodec: "aac", pixelFormat: "yuv420p", bitrate: 5_000_000, container: "mov,mp4", sizeBytes: 4242,
 };
 
 let db: Db;

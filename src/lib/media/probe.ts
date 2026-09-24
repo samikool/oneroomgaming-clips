@@ -5,6 +5,8 @@ export type MediaInfo = {
   width: number | null;
   height: number | null;
   videoCodec: string | null;
+  /** ffprobe's `pix_fmt`. Browsers only decode 8-bit 4:2:0 H.264. */
+  pixelFormat: string | null;
   audioCodec: string | null;
   bitrate: number | null;
   container: string | null;
@@ -21,6 +23,7 @@ export class ProbeError extends Error {
 type FfStream = {
   codec_type?: string;
   codec_name?: string;
+  pix_fmt?: string;
   width?: number;
   height?: number;
 };
@@ -76,6 +79,7 @@ export async function probeFile(path: string): Promise<MediaInfo> {
     width: video.width ?? null,
     height: video.height ?? null,
     videoCodec: video.codec_name ?? null,
+    pixelFormat: video.pix_fmt ?? null,
     audioCodec: audio?.codec_name ?? null,
     bitrate: Number.isFinite(bitrate) ? bitrate : null,
     container: parsed.format?.format_name ?? null,

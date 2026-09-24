@@ -15,7 +15,7 @@ beforeAll(async () => {
     "ffmpeg", "-loglevel", "error",
     "-f", "lavfi", "-i", "testsrc=duration=1:size=320x240:rate=10",
     "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-    "-t", "1", "-c:v", "libx264", "-c:a", "aac", "-shortest", sample,
+    "-t", "1", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", sample,
   ]);
   await proc.exited;
 });
