@@ -142,3 +142,12 @@ body {
   .reaction-float { animation: reaction-fade 3s linear forwards; }
   @keyframes reaction-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
 }
+.comment-form { display: flex; gap: 8px; }
+.comment-form .title-input { min-width: 0; }
+.comment-list { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.comment { position: relative; border-left: 2px solid #303b48; padding-left: 12px; }
+.comment-delete {
+  position: absolute; top: 0; right: 0;
+  background: transparent; color: #9aa4b2; font-size: 11px; cursor: pointer;
+}
+.comment-delete:hover { color: #e6e9ee; }

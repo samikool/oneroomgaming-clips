@@ -1,8 +1,11 @@
 import { ClipPlayer } from "@/components/clip-player";
+import { CommentForm } from "@/components/comment-form";
+import { CommentList } from "@/components/comment-list";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getDb } from "@/db/client";
 import { getClip } from "@/db/clips";
+import { listComments } from "@/db/comments";
 import { clipPublicPath } from "@/lib/media/paths";
 import { formatDuration } from "@/lib/format";
 import { requireUser } from "@/lib/session";
@@ -14,7 +17,7 @@ export default async function ClipPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireUser();
+  const user = await requireUser();
   const { id } = await params;
   const clip = getClip(getDb(), id);
 
@@ -33,6 +36,18 @@ export default async function ClipPage({
         {clip.width && clip.height ? ` · ${clip.width}×${clip.height}` : ""}
       </p>
       <ClipPlayer src={clipPublicPath(clip.id)} />
+
+      <section className="mt-8">
+        <h2 className="mb-3 text-sm font-semibold text-ink">Comments</h2>
+        <CommentForm clipId={clip.id} />
+        <div className="mt-4">
+          <CommentList
+            clipId={clip.id}
+            initial={listComments(getDb(), clip.id)}
+            me={user.authentikUsername}
+          />
+        </div>
+      </section>
     </main>
   );
 }
