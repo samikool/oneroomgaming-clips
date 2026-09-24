@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { withFilter } from "@/lib/filters";
 import type { ClipStatus } from "@/db/schema";
 import { formatDuration } from "@/lib/format";
 
@@ -20,6 +21,8 @@ export type ClipCardData = {
   status: string;
   thumbPath: string | null;
   durationMs: number | null;
+  uploader?: string | null;
+  game?: { name: string; slug: string } | null;
 };
 
 // `status` arrives as a plain string over the wire. Narrowing here keeps the
@@ -53,9 +56,37 @@ export function ClipCard({ clip }: { clip: ClipCardData }) {
     </div>
   );
 
+  // The footer sits OUTSIDE the tile's link: the tile is already an anchor,
+  // and nesting one inside it is invalid HTML that browsers resolve
+  // unpredictably.
+  const footer = (clip.uploader || clip.game) && (
+    <p className="mt-1 flex flex-wrap gap-2 text-xs text-ink-muted">
+      {clip.uploader && (
+        <Link className="hover:text-ink" href={withFilter({}, "uploader", clip.uploader)}>
+          {clip.uploader}
+        </Link>
+      )}
+      {clip.game && (
+        <Link className="hover:text-ink" href={withFilter({}, "game", clip.game.slug)}>
+          {clip.game.name}
+        </Link>
+      )}
+    </p>
+  );
+
   if (clip.status !== "ready") {
-    return <div className="opacity-60">{tile}</div>;
+    return (
+      <div>
+        <div className="opacity-60">{tile}</div>
+        {footer}
+      </div>
+    );
   }
 
-  return <Link href={`/clips/${clip.id}`}>{tile}</Link>;
+  return (
+    <div>
+      <Link href={`/clips/${clip.id}`}>{tile}</Link>
+      {footer}
+    </div>
+  );
 }

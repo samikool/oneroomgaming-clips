@@ -1,10 +1,13 @@
 import { getClip } from "@/db/clips";
 import type { Db } from "@/db/client";
+import type { GridClip } from "@/db/clips";
 import type { Clip } from "@/db/schema";
 import type { ClipSummary } from "@/lib/realtime/envelope";
 import { publish } from "@/lib/realtime/publish";
 
-export function toSummary(clip: Clip): ClipSummary {
+export function toSummary(clip: Clip | GridClip): ClipSummary {
+  const meta = clip as Partial<GridClip>;
+
   return {
     id: clip.id,
     title: clip.title,
@@ -13,6 +16,8 @@ export function toSummary(clip: Clip): ClipSummary {
     durationMs: clip.durationMs,
     // A Date would arrive as a string on the other side of JSON.
     createdAt: clip.createdAt.getTime(),
+    uploader: meta.uploader ?? null,
+    game: meta.game ?? null,
   };
 }
 

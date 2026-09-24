@@ -13,6 +13,13 @@ export type ClipSummary = {
   durationMs: number | null;
   /** Milliseconds since the epoch. A Date would arrive as a string over JSON. */
   createdAt: number;
+  /**
+   * Filled on the server-rendered path only. A live `clip.added` has no join
+   * available, and a brand new clip has neither an uploader chip nor a game
+   * worth showing, so both are optional rather than nullable-required.
+   */
+  uploader?: string | null;
+  game?: { name: string; slug: string } | null;
 };
 
 /**

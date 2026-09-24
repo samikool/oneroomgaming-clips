@@ -1,3 +1,4 @@
+import { ClipMetadataPanel } from "@/components/clip-metadata";
 import { ClipPlayer } from "@/components/clip-player";
 import { CommentForm } from "@/components/comment-form";
 import { CommentList } from "@/components/comment-list";
@@ -6,6 +7,8 @@ import Link from "next/link";
 import { getDb } from "@/db/client";
 import { getClip } from "@/db/clips";
 import { listComments } from "@/db/comments";
+import { getClipMetadata } from "@/db/metadata";
+import { listUsernames } from "@/db/users";
 import { clipPublicPath } from "@/lib/media/paths";
 import { formatDuration } from "@/lib/format";
 import { requireUser } from "@/lib/session";
@@ -36,6 +39,14 @@ export default async function ClipPage({
         {clip.width && clip.height ? ` · ${clip.width}×${clip.height}` : ""}
       </p>
       <ClipPlayer src={clipPublicPath(clip.id)} />
+
+      <div className="mt-4">
+        <ClipMetadataPanel
+          clipId={clip.id}
+          metadata={getClipMetadata(getDb(), clip.id)}
+          knownUsers={listUsernames(getDb())}
+        />
+      </div>
 
       <section className="mt-8">
         <h2 className="mb-3 text-sm font-semibold text-ink">Comments</h2>

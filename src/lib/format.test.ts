@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { formatDuration } from "@/lib/format";
+import { formatBytes, formatDuration } from "@/lib/format";
 
 describe("formatDuration", () => {
   it("formats seconds under a minute", () => {
@@ -20,5 +20,25 @@ describe("formatDuration", () => {
 
   it("renders zero as 0:00", () => {
     expect(formatDuration(0)).toBe("0:00");
+  });
+});
+
+describe("formatBytes", () => {
+  it("shows bytes below a kilobyte", () => {
+    expect(formatBytes(512)).toBe("512 B");
+  });
+
+  it("steps up through the units", () => {
+    expect(formatBytes(1_024)).toBe("1.0 KB");
+    expect(formatBytes(1_048_576)).toBe("1.0 MB");
+    expect(formatBytes(1_073_741_824)).toBe("1.0 GB");
+  });
+
+  it("keeps one decimal place where it is informative", () => {
+    expect(formatBytes(1_610_612_736)).toBe("1.5 GB");
+  });
+
+  it("handles zero", () => {
+    expect(formatBytes(0)).toBe("0 B");
   });
 });

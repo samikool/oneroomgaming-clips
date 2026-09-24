@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createDb, type Db } from "@/db/client";
 import { mediaFiles } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { clips } from "@/db/schema";
 import {
-  applyProbe, createClip, deleteClip, getClip, listAllClips, listReadyClips,
-  recordMediaFile, setClipStatus, setClipThumb,
+  applyProbe, createClip, deleteClip, getClip, listAllClips, listClips, listReadyClips,
+  recordMediaFile, setClipStatus, setClipThumb, totalDiskBytes,
 } from "@/db/clips";
+import { setClipGame, setClipParticipants, setClipTags } from "@/db/metadata";
+import { upsertUser } from "@/db/users";
 import type { MediaInfo } from "@/lib/media/probe";
 
 const info: MediaInfo = {
@@ -100,5 +104,110 @@ describe("clip queries", () => {
     deleteClip(db, clip.id);
 
     expect(listAllClips(db)).toHaveLength(0);
+  });
+});
+
+function seed(id: string, uploaderId?: string) {
+  return createClip(db, {
+    id, title: id, originalFilename: `${id}.mp4`, sizeBytes: 100, uploaderId,
+  });
+}
+
+describe("listClips", () => {
+  it("returns everything, newest first, when unfiltered", () => {
+    const sam = upsertUser(db, { username: "sam", email: null, displayName: null }).id;
+    seed("01A", sam);
+    seed("01B", sam);
+
+    expect(listClips(db).map((c) => c.id)).toEqual(["01B", "01A"]);
+  });
+
+  it("filters by tag", () => {
+    const sam = upsertUser(db, { username: "sam", email: null, displayName: null }).id;
+    seed("01A", sam);
+    seed("01B", sam);
+    setClipTags(db, "01A", ["ace"]);
+
+    expect(listClips(db, { tag: "ace" }).map((c) => c.id)).toEqual(["01A"]);
+  });
+
+  it("filters by game slug", () => {
+    const sam = upsertUser(db, { username: "sam", email: null, displayName: null }).id;
+    seed("01A", sam);
+    seed("01B", sam);
+    setClipGame(db, "01A", "Valorant");
+
+    expect(listClips(db, { game: "valorant" }).map((c) => c.id)).toEqual(["01A"]);
+  });
+
+  it("filters by uploader username", () => {
+    const sam = upsertUser(db, { username: "sam", email: null, displayName: null }).id;
+    const dave = upsertUser(db, { username: "dave", email: null, displayName: null }).id;
+    seed("01A", sam);
+    seed("01B", dave);
+
+    expect(listClips(db, { uploader: "dave" }).map((c) => c.id)).toEqual(["01B"]);
+  });
+
+  it("filters by participant", () => {
+    const sam = upsertUser(db, { username: "sam", email: null, displayName: null }).id;
+    upsertUser(db, { username: "dave", email: null, displayName: null });
+    seed("01A", sam);
+    seed("01B", sam);
+    setClipParticipants(db, "01A", ["dave"]);
+
+    expect(listClips(db, { participant: "dave" }).map((c) => c.id)).toEqual(["01A"]);
+  });
+
+  it("ANDs filters together rather than ORing them", () => {
+    const sam = upsertUser(db, { username: "sam", email: null, displayName: null }).id;
+    const dave = upsertUser(db, { username: "dave", email: null, displayName: null }).id;
+    seed("01A", sam);
+    seed("01B", dave);
+    setClipTags(db, "01A", ["ace"]);
+    setClipTags(db, "01B", ["ace"]);
+
+    expect(listClips(db, { tag: "ace", uploader: "dave" }).map((c) => c.id)).toEqual(["01B"]);
+  });
+
+  it("returns nothing for a filter that matches nothing", () => {
+    const sam = upsertUser(db, { username: "sam", email: null, displayName: null }).id;
+    seed("01A", sam);
+
+    expect(listClips(db, { tag: "nonexistent" })).toEqual([]);
+  });
+
+  it("does not return a clip twice when it has several tags", () => {
+    // A join against clip_tags multiplies rows. Without a subquery the grid
+    // renders the same card once per tag.
+    const sam = upsertUser(db, { username: "sam", email: null, displayName: null }).id;
+    seed("01A", sam);
+    setClipTags(db, "01A", ["ace", "clutch", "funny"]);
+
+    expect(listClips(db, { tag: "ace" })).toHaveLength(1);
+  });
+});
+
+describe("totalDiskBytes", () => {
+  it("is zero with no clips", () => {
+    expect(totalDiskBytes(db)).toBe(0);
+  });
+
+  it("sums what the pipeline recorded", () => {
+    seed("01A");
+    seed("01B");
+    db.update(clips).set({ sizeBytes: 1_000 }).where(eq(clips.id, "01A")).run();
+    db.update(clips).set({ sizeBytes: 2_500 }).where(eq(clips.id, "01B")).run();
+
+    expect(totalDiskBytes(db)).toBe(3_500);
+  });
+
+  it("ignores clips whose size is not known yet", () => {
+    seed("01A");
+    db.update(clips).set({ sizeBytes: 1_000 }).where(eq(clips.id, "01A")).run();
+    seed("01B");
+    db.update(clips).set({ sizeBytes: null }).where(eq(clips.id, "01B")).run();
+
+    expect(totalDiskBytes(db)).toBe(1_000);
   });
 });

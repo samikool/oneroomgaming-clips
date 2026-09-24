@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { ulid } from "ulid";
 import type { Db } from "./client";
 import { users, type User } from "./schema";
@@ -41,4 +41,14 @@ export function upsertUser(
     })
     .returning()
     .get();
+}
+
+/** Every username known here, for the participant picker's hint. */
+export function listUsernames(db: Db): string[] {
+  return db
+    .select({ name: users.authentikUsername })
+    .from(users)
+    .orderBy(asc(users.authentikUsername))
+    .all()
+    .map((row) => row.name);
 }

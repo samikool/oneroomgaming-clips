@@ -1,7 +1,18 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import type { Db } from "./client";
-import { clips, mediaFiles, type Clip, type ClipStatus } from "./schema";
+import {
+  clipParticipants,
+  clips,
+  clipTags,
+  games,
+  mediaFiles,
+  tags,
+  users,
+  type Clip,
+  type ClipStatus,
+} from "./schema";
+import type { ClipFilters } from "@/lib/filters";
 import type { MediaInfo } from "@/lib/media/probe";
 
 export function createClip(
@@ -127,4 +138,133 @@ export function getClip(db: Db, id: string): Clip | undefined {
 
 export function deleteClip(db: Db, id: string): void {
   db.delete(clips).where(eq(clips.id, id)).run();
+}
+
+/**
+ * The grid's query. Filters AND together, newest first.
+ *
+ * Each filter is expressed as a subquery on the clip id rather than a join,
+ * because joining against `clip_tags` multiplies rows and would render the
+ * same card once per tag.
+ */
+export function listClips(db: Db, filters: ClipFilters = {}, limit = 100): Clip[] {
+  const conditions = [];
+
+  if (filters.tag) {
+    conditions.push(
+      inArray(
+        clips.id,
+        db
+          .select({ id: clipTags.clipId })
+          .from(clipTags)
+          .innerJoin(tags, eq(clipTags.tagId, tags.id))
+          .where(eq(tags.name, filters.tag.toLowerCase())),
+      ),
+    );
+  }
+
+  if (filters.game) {
+    conditions.push(
+      inArray(
+        clips.gameId,
+        db.select({ id: games.id }).from(games).where(eq(games.slug, filters.game)),
+      ),
+    );
+  }
+
+  if (filters.uploader) {
+    conditions.push(
+      inArray(
+        clips.uploaderId,
+        db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.authentikUsername, filters.uploader)),
+      ),
+    );
+  }
+
+  if (filters.participant) {
+    conditions.push(
+      inArray(
+        clips.id,
+        db
+          .select({ id: clipParticipants.clipId })
+          .from(clipParticipants)
+          .innerJoin(users, eq(clipParticipants.userId, users.id))
+          .where(eq(users.authentikUsername, filters.participant)),
+      ),
+    );
+  }
+
+  const query = db.select().from(clips);
+  const filtered = conditions.length > 0 ? query.where(and(...conditions)) : query;
+
+  return filtered.orderBy(desc(clips.createdAt)).limit(limit).all();
+}
+
+/**
+ * Total bytes the library occupies, as recorded by the pipeline.
+ *
+ * Surfaced in the UI because it is useful to know; there are no quotas. A
+ * clip whose probe has not run yet has no size and contributes nothing.
+ */
+export function totalDiskBytes(db: Db): number {
+  const row = db
+    .select({ total: sql<number>`coalesce(sum(${clips.sizeBytes}), 0)` })
+    .from(clips)
+    .get();
+
+  return row?.total ?? 0;
+}
+
+export type GridClip = Clip & {
+  uploader: string | null;
+  game: { name: string; slug: string } | null;
+};
+
+/**
+ * `listClips` plus the two fields a card can be clicked on.
+ *
+ * A second pass rather than a wider join in `listClips`: that function's
+ * subquery-per-filter shape is what keeps a multi-tag clip from appearing
+ * twice, and widening it would undo that.
+ */
+export function listClipsForGrid(db: Db, filters: ClipFilters = {}, limit = 100): GridClip[] {
+  const rows = listClips(db, filters, limit);
+
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const uploaderIds = [...new Set(rows.map((r) => r.uploaderId).filter((id): id is string => !!id))];
+  const gameIds = [...new Set(rows.map((r) => r.gameId).filter((id): id is string => !!id))];
+
+  const uploaders = new Map(
+    uploaderIds.length === 0
+      ? []
+      : db
+          .select({ id: users.id, name: users.authentikUsername })
+          .from(users)
+          .where(inArray(users.id, uploaderIds))
+          .all()
+          .map((u) => [u.id, u.name] as const),
+  );
+
+  const gameRows = new Map(
+    gameIds.length === 0
+      ? []
+      : db
+          .select({ id: games.id, name: games.name, slug: games.slug })
+          .from(games)
+          .where(inArray(games.id, gameIds))
+          .all()
+          .map((g) => [g.id, { name: g.name, slug: g.slug }] as const),
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    uploader: row.uploaderId ? (uploaders.get(row.uploaderId) ?? null) : null,
+    game: row.gameId ? (gameRows.get(row.gameId) ?? null) : null,
+  }));
 }
