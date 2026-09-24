@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { Clip, ClipStatus } from "@/db/schema";
+import type { ClipStatus } from "@/db/schema";
 import { formatDuration } from "@/lib/format";
 
 const STATUS_LABEL: Partial<Record<ClipStatus, string>> = {
@@ -9,8 +9,27 @@ const STATUS_LABEL: Partial<Record<ClipStatus, string>> = {
   failed: "Failed",
 };
 
-export function ClipCard({ clip }: { clip: Clip }) {
-  const label = STATUS_LABEL[clip.status];
+/**
+ * Exactly what this card reads. A live `ClipSummary` off the wire satisfies it
+ * structurally, and so does a full `Clip` row — so the server-rendered path is
+ * unchanged and no one has to fake a `Clip` to render a pushed update.
+ */
+export type ClipCardData = {
+  id: string;
+  title: string;
+  status: string;
+  thumbPath: string | null;
+  durationMs: number | null;
+};
+
+// `status` arrives as a plain string over the wire. Narrowing here keeps the
+// lookup typed while an unrecognised value simply yields no label.
+function statusLabel(status: string): string | undefined {
+  return STATUS_LABEL[status as ClipStatus];
+}
+
+export function ClipCard({ clip }: { clip: ClipCardData }) {
+  const label = statusLabel(clip.status);
 
   const tile = (
     <div className="overflow-hidden rounded-lg bg-surface-raised">

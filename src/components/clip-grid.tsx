@@ -1,7 +1,6 @@
-import type { Clip } from "@/db/schema";
-import { ClipCard } from "./clip-card";
+import { ClipCard, type ClipCardData } from "./clip-card";
 
-export function ClipGrid({ clips }: { clips: Clip[] }) {
+export function ClipGrid({ clips }: { clips: ClipCardData[] }) {
   if (clips.length === 0) {
     return (
       <p className="text-ink-muted">

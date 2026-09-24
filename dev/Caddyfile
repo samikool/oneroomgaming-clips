@@ -11,6 +11,11 @@
     root * /srv
     file_server
   }
+  # Must precede the catch-all: a bare `handle` would swallow /ws.
+  # Mirrors the production vhost, which routes /ws* to clips-realtime:3001.
+  handle /ws* {
+    reverse_proxy 127.0.0.1:3001
+  }
   handle {
     reverse_proxy 127.0.0.1:3002
   }

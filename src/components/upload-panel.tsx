@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
+import { useRealtime } from "@/lib/realtime/use-realtime";
 import type { Upload } from "tus-js-client";
 
 type Phase = "queued" | "starting" | "uploading" | "pausing" | "paused" | "error" | "processing" | "ready" | "failed" | "needs_transcode" | "cancelled";
@@ -39,32 +40,18 @@ function UploadRow({ file, username }: { file: File; username: string }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (!clipId || phase !== "processing") return;
-    let stopped = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const controller = new AbortController();
-    async function check() {
-      try {
-        const res = await fetch(`/api/clips/${clipId}`, { signal: controller.signal });
-        if (res.status === 401) throw new Error("Sign in again, then return to your clip library.");
-        if (!res.ok) throw new Error("Waiting for the server. Your upload is saved.");
-        const clip = await res.json();
-        if (stopped) return;
-        setMessage("");
-        if (["ready", "failed", "needs_transcode"].includes(clip.status)) {
-          transition(clip.status);
-          return;
-        }
-      } catch (err) {
-        if (stopped) return;
-        setMessage(err instanceof Error ? err.message : "Waiting for the server…");
-      }
-      if (!stopped) timer = setTimeout(check, 2000);
+  // Processing status arrives pushed, not polled. Polling sampled a status
+  // that is momentarily "failed" while a job still has retries left and
+  // reported it as terminal; the runner now only writes "failed" once retries
+  // are spent, so a pushed "failed" is genuinely final.
+  useRealtime(["grid"], (message) => {
+    if (message.t !== "clip.updated" || message.clip.id !== clipId) return;
+    const status = message.clip.status;
+    if (status === "ready" || status === "failed" || status === "needs_transcode") {
+      setMessage("");
+      transition(status);
     }
-    void check();
-    return () => { stopped = true; clearTimeout(timer); controller.abort(); };
-  }, [clipId, phase]);
+  });
 
   async function start() {
     if (!["queued", "paused", "error", "cancelled"].includes(phaseRef.current)) return;

@@ -198,3 +198,46 @@ Deferred deliberately, with reasons, none blocking:
 - **`Hub` has no topics or backpressure** — correct for milestone 1, but the
   spec requires both before milestone 4.
 - **Six vhosts lack `private_only`** (see the exposure note above).
+
+## Milestone 4 verification (2026-09-24)
+
+The realtime layer was verified end to end against a running stack. Recorded
+because two of these legs had never run before.
+
+**`EMIT_SECRET` worked for the first time.** It has been configured since
+milestone 1 and nothing in `web` had ever called `POST /emit`. A real socket
+subscribed to `grid`, a file was dropped into `incoming/`, and the socket
+received, in order:
+
+```
+clip.added    pending     "live test"
+clip.updated  processing  "live test"
+clip.updated  processing  "live test"
+clip.updated  ready       "live test"
+```
+
+No polling anywhere in that path.
+
+**Realtime being down degrades rather than breaks.** With the service killed,
+the page still served 200, a newly dropped clip still ingested and processed
+to `ready`, and `web` logged `realtime: publish failed (...)` warnings with
+**zero** unhandled rejections and zero 500s. Publishing is genuinely
+fire-and-forget, not a new hard dependency on the pipeline.
+
+**Not verified here: the `/ws` proxy hop in local dev.** The dev Caddy on
+:3000 runs as root from a config this session could not reach, so its `/ws`
+route could not be reloaded. `dev/Caddyfile` in this repo now carries the
+route; restart that Caddy to pick it up. Production is unaffected — the
+`clips.oneroomgaming.com` vhost in `~/git/containers` has routed `/ws*` to
+`clips-realtime:3001` since milestone 1.
+
+### Running the dev stack with realtime
+
+```bash
+EMIT_SECRET=devsecret REALTIME_PORT=3001 bun src/realtime/index.ts
+DEV_AUTH_USERNAME=localdev EMIT_SECRET=devsecret \
+  REALTIME_URL=http://127.0.0.1:3001 bun --bun next dev -H 0.0.0.0 -p 3002
+```
+
+Then a Caddy on :3000 using `dev/Caddyfile`, which serves `/media/*` off disk,
+proxies `/ws*` to 3001 and everything else to 3002.
