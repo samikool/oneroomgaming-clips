@@ -46,9 +46,11 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Git tags keep the v (v0.1.0); image tags drop it (0.1.0), which is
+      # what node, postgres and nginx all publish. Harmless if a tag has no v.
       - name: Extract version tag
         id: tag
-        run: echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
       - name: Build and push image
         uses: docker/build-push-action@v6
