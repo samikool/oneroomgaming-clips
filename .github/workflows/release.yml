@@ -29,6 +29,19 @@ jobs:
       - name: Run tests
         run: bun run test
 
+      # A manual bump invites tagging v0.2.0 while package.json still says
+      # 0.1.0, which would publish a mislabelled image with no warning. Fail
+      # before anything is built or pushed.
+      - name: Verify tag matches package.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "tag $GITHUB_REF_NAME implies version $tag, package.json says $pkg"
+            exit 1
+          fi
+          echo "tag and package.json agree on $pkg"
+
   release:
     runs-on: ubuntu-latest
     needs: test
@@ -66,12 +79,10 @@ jobs:
         with:
           generate_release_notes: true
 
-      - name: Backmerge master into dev
-        continue-on-error: true
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin dev
-          git checkout dev
-          git merge --no-edit "$GITHUB_SHA"
-          git push origin dev
+      # master is a pointer to what production is running, so it only ever
+      # advances to a commit that is already on dev. Pushed WITHOUT --force: a
+      # direct commit to master would make this fail, which is the point. The
+      # invariant is broken and a human should look, rather than have it
+      # silently clobbered.
+      - name: Fast-forward master to the released commit
+        run: git push origin "$GITHUB_SHA:refs/heads/master"
