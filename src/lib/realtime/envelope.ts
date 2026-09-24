@@ -63,16 +63,26 @@ export type ClientMessage =
       durationMs?: number | null;
     };
 
-export function topicFor(message: ServerMessage): Topic {
+/**
+ * Which topics a message belongs to.
+ *
+ * Almost everything belongs to exactly one. `presence` belongs to two: the
+ * grid shows who is on the site, and the theater shows who is in the room, and
+ * both facts travel in the same message. Routing it to one topic would leave
+ * the other surface blind.
+ */
+export function topicsFor(message: ServerMessage): Topic[] {
   switch (message.t) {
     case "hello":
     case "time.sync":
-      return "user";
+      return ["user"];
+    case "presence":
+      return ["grid", "room"];
     case "room":
     case "room.controlRequested":
-      return "room";
+      return ["room"];
     default:
-      return "grid";
+      return ["grid"];
   }
 }
 

@@ -1,4 +1,4 @@
-import { isEphemeral, topicFor, type ServerMessage, type Topic } from "@/lib/realtime/envelope";
+import { isEphemeral, topicsFor, type ServerMessage, type Topic } from "@/lib/realtime/envelope";
 
 export type Sendable = {
   send(data: string): void;
@@ -43,18 +43,49 @@ export class Hub {
   }
 
   publish(message: ServerMessage): number {
-    const topic = topicFor(message);
+    const topics = topicsFor(message);
     const droppable = isEphemeral(message);
     const payload = JSON.stringify(message);
     let delivered = 0;
 
     // Iterate a snapshot: a throwing socket is deleted mid-loop.
     for (const [socket, entry] of [...this.#sockets.entries()]) {
-      if (!entry.topics.has(topic)) {
+      if (!topics.some((topic) => entry.topics.has(topic))) {
         continue;
       }
 
       if (droppable && (socket.bufferedAmount ?? 0) > MAX_BUFFERED_BYTES) {
+        continue;
+      }
+
+      try {
+        socket.send(payload);
+        delivered += 1;
+      } catch {
+        this.#sockets.delete(socket);
+      }
+    }
+
+    return delivered;
+  }
+
+  /**
+   * Deliver to one person's sockets rather than a topic.
+   *
+   * `room.controlRequested` is the only message with a single recipient: the
+   * host. Broadcasting it on the room topic would show everyone in the theater
+   * a prompt only the host can act on.
+   *
+   * Still gated on the message's topic — a socket that never asked for `room`
+   * should not receive room messages by virtue of who is holding it.
+   */
+  sendTo(username: string, message: ServerMessage): number {
+    const topics = topicsFor(message);
+    const payload = JSON.stringify(message);
+    let delivered = 0;
+
+    for (const [socket, entry] of [...this.#sockets.entries()]) {
+      if (entry.username !== username || !topics.some((topic) => entry.topics.has(topic))) {
         continue;
       }
 

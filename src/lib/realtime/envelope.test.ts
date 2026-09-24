@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   isEphemeral,
   parseClientMessage,
-  topicFor,
+  topicsFor,
   type ServerMessage,
 } from "@/lib/realtime/envelope";
 
@@ -15,23 +15,25 @@ const clip = {
   createdAt: 1_700_000_000_000,
 };
 
-describe("topicFor", () => {
+describe("topicsFor", () => {
   it("routes clip lifecycle to the grid topic", () => {
-    expect(topicFor({ t: "clip.added", clip })).toBe("grid");
-    expect(topicFor({ t: "clip.updated", clip })).toBe("grid");
+    expect(topicsFor({ t: "clip.added", clip })).toEqual(["grid"]);
+    expect(topicsFor({ t: "clip.updated", clip })).toEqual(["grid"]);
   });
 
   it("routes upload progress to the grid topic", () => {
-    expect(topicFor({ t: "upload.progress", uploadId: "u1", pct: 40, user: "sam" })).toBe("grid");
+    expect(topicsFor({ t: "upload.progress", uploadId: "u1", pct: 40, user: "sam" })).toEqual(["grid"]);
   });
 
-  it("routes presence to the grid topic", () => {
-    expect(topicFor({ t: "presence", online: ["sam"], inRoom: [] })).toBe("grid");
+  it("routes presence to both grid and room", () => {
+    // The grid shows who is on the site and the theater shows who is in the
+    // room; both facts travel in this one message.
+    expect(topicsFor({ t: "presence", online: ["sam"], inRoom: [] })).toEqual(["grid", "room"]);
   });
 
   it("routes per-connection messages to the user topic", () => {
-    expect(topicFor({ t: "hello", username: "sam", serverTime: 1 })).toBe("user");
-    expect(topicFor({ t: "time.sync", t0: 1, t1: 2 })).toBe("user");
+    expect(topicsFor({ t: "hello", username: "sam", serverTime: 1 })).toEqual(["user"]);
+    expect(topicsFor({ t: "time.sync", t0: 1, t1: 2 })).toEqual(["user"]);
   });
 });
 
@@ -165,7 +167,7 @@ describe("parseClientMessage — room commands", () => {
   });
 });
 
-describe("topicFor — room messages", () => {
+describe("topicsFor — room messages", () => {
   const state = {
     clipId: null,
     clipTitle: null,
@@ -178,10 +180,10 @@ describe("topicFor — room messages", () => {
   };
 
   it("routes a room snapshot to the room topic", () => {
-    expect(topicFor({ t: "room", state })).toBe("room");
+    expect(topicsFor({ t: "room", state })).toEqual(["room"]);
   });
 
   it("routes a control request to the room topic", () => {
-    expect(topicFor({ t: "room.controlRequested", user: "sam" })).toBe("room");
+    expect(topicsFor({ t: "room.controlRequested", user: "sam" })).toEqual(["room"]);
   });
 });

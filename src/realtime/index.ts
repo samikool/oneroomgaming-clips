@@ -1,15 +1,21 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { WebSocketServer } from "ws";
 import { MissingAuthHeadersError, parseAuthentikHeaders } from "@/lib/auth";
-import { parseClientMessage, type ServerMessage } from "@/lib/realtime/envelope";
+import {
+  parseClientMessage,
+  type ClientMessage,
+  type ServerMessage,
+} from "@/lib/realtime/envelope";
 import { isAuthorizedEmit } from "./emit-auth";
 import { Hub } from "./hub";
+import { Room } from "./room";
 
 const PORT = Number(process.env.REALTIME_PORT ?? 3001);
 const EMIT_SECRET = process.env.EMIT_SECRET;
 const MAX_EMIT_BYTES = 64 * 1024;
 
 const hub = new Hub();
+const room = new Room();
 
 class EmitBodyTooLargeError extends Error {
   constructor() {
@@ -80,6 +86,61 @@ async function handleEmit(request: IncomingMessage, response: ServerResponse) {
   }
 }
 
+function publishRoom(): void {
+  hub.publish({ t: "room", state: room.state });
+}
+
+function publishPresence(): void {
+  hub.publish({ t: "presence", online: hub.online, inRoom: room.members });
+}
+
+function handleRoomMessage(username: string, message: ClientMessage): void {
+  switch (message.t) {
+    case "room.join":
+      if (room.join(username)) {
+        publishRoom();
+        publishPresence();
+      }
+
+      return;
+
+    case "room.leave":
+      if (room.leave(username)) {
+        publishRoom();
+        publishPresence();
+      }
+
+      return;
+
+    case "room.claimHost":
+      if (room.claimHost(username)) {
+        publishRoom();
+      }
+
+      return;
+
+    case "room.giveControl":
+      if (room.giveControl(username, message.userId)) {
+        publishRoom();
+      }
+
+      return;
+
+    case "room.control":
+      // An unauthorized command returns false and is dropped in silence. The
+      // sender's client already shows disabled controls; a rejection message
+      // would only invite the client to become the enforcement point.
+      if (room.control(username, message)) {
+        publishRoom();
+      }
+
+      return;
+
+    default:
+      return;
+  }
+}
+
 export const server = createServer((request, response) => {
   if (request.method === "GET" && request.url === "/healthz") {
     response.writeHead(200, { "content-type": "application/json" });
@@ -114,7 +175,7 @@ server.on("upgrade", (request, socket, head) => {
   wss.handleUpgrade(request, socket, head, (ws) => {
     hub.add(ws, username);
     ws.send(JSON.stringify({ t: "hello", username, serverTime: Date.now() }));
-    hub.publish({ t: "presence", online: hub.online, inRoom: [] });
+    publishPresence();
 
     ws.on("message", (data) => {
       // A malformed frame from one client must never disturb the process or
@@ -129,7 +190,12 @@ server.on("upgrade", (request, socket, head) => {
         hub.subscribe(ws, message.topics);
         // Send presence straight away; otherwise a fresh subscriber sees
         // nobody until the next join or leave.
-        ws.send(JSON.stringify({ t: "presence", online: hub.online, inRoom: [] }));
+        ws.send(JSON.stringify({ t: "presence", online: hub.online, inRoom: room.members }));
+
+        if (message.topics.includes("room")) {
+          ws.send(JSON.stringify({ t: "room", state: room.state }));
+        }
+
         return;
       }
 
@@ -140,12 +206,29 @@ server.on("upgrade", (request, socket, head) => {
         return;
       }
 
-      // Every room.* command lands here. Wired up in the next task.
+      if (message.t === "room.requestControl") {
+        const host = room.requestControl(username);
+
+        if (host !== null) {
+          hub.sendTo(host, { t: "room.controlRequested", user: username });
+        }
+
+        return;
+      }
+
+      handleRoomMessage(username, message);
     });
 
     const drop = () => {
       hub.remove(ws);
-      hub.publish({ t: "presence", online: hub.online, inRoom: [] });
+
+      // Only a person's LAST socket going counts as leaving the room —
+      // otherwise closing a second tab drops you out of the theater.
+      if (!hub.online.includes(username) && room.leave(username)) {
+        publishRoom();
+      }
+
+      publishPresence();
     };
 
     ws.on("close", drop);

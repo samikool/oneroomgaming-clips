@@ -120,3 +120,55 @@ describe("Hub", () => {
     expect(hub.online).toEqual([]);
   });
 });
+
+describe("Hub.sendTo", () => {
+  const requested: ServerMessage = { t: "room.controlRequested", user: "dave" };
+
+  it("delivers to every socket of that user and nobody else", () => {
+    const hub = new Hub();
+    const phone = fakeSocket();
+    const laptop = fakeSocket();
+    const other = fakeSocket();
+    hub.add(phone.socket, "sam");
+    hub.add(laptop.socket, "sam");
+    hub.add(other.socket, "dave");
+    hub.subscribe(phone.socket, ["room"]);
+    hub.subscribe(laptop.socket, ["room"]);
+    hub.subscribe(other.socket, ["room"]);
+
+    expect(hub.sendTo("sam", requested)).toBe(2);
+    expect(phone.sent).toHaveLength(1);
+    expect(laptop.sent).toHaveLength(1);
+    expect(other.sent).toEqual([]);
+  });
+
+  it("skips a socket of that user that is not on the room topic", () => {
+    const hub = new Hub();
+    const gridOnly = fakeSocket();
+    hub.add(gridOnly.socket, "sam");
+    hub.subscribe(gridOnly.socket, ["grid"]);
+
+    expect(hub.sendTo("sam", requested)).toBe(0);
+  });
+
+  it("delivers nothing for a user with no sockets", () => {
+    expect(new Hub().sendTo("ghost", requested)).toBe(0);
+  });
+
+  it("evicts a socket that throws and keeps going", () => {
+    const hub = new Hub();
+    const healthy = fakeSocket();
+    const broken: Sendable = {
+      send: () => {
+        throw new Error("closed");
+      },
+    };
+    hub.add(broken, "sam");
+    hub.add(healthy.socket, "sam");
+    hub.subscribe(broken, ["room"]);
+    hub.subscribe(healthy.socket, ["room"]);
+
+    expect(hub.sendTo("sam", requested)).toBe(1);
+    expect(hub.size).toBe(1);
+  });
+});
