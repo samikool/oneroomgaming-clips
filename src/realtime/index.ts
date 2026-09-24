@@ -114,7 +114,7 @@ server.on("upgrade", (request, socket, head) => {
   wss.handleUpgrade(request, socket, head, (ws) => {
     hub.add(ws, username);
     ws.send(JSON.stringify({ t: "hello", username, serverTime: Date.now() }));
-    hub.publish({ t: "presence", online: hub.online });
+    hub.publish({ t: "presence", online: hub.online, inRoom: [] });
 
     ws.on("message", (data) => {
       // A malformed frame from one client must never disturb the process or
@@ -129,18 +129,23 @@ server.on("upgrade", (request, socket, head) => {
         hub.subscribe(ws, message.topics);
         // Send presence straight away; otherwise a fresh subscriber sees
         // nobody until the next join or leave.
-        ws.send(JSON.stringify({ t: "presence", online: hub.online }));
+        ws.send(JSON.stringify({ t: "presence", online: hub.online, inRoom: [] }));
         return;
       }
 
-      // t1 is stamped with the server's clock. Milestone 5's playback sync
-      // computes its offset from this, so a client-supplied t1 is useless.
-      ws.send(JSON.stringify({ t: "time.sync", t0: message.t0, t1: Date.now() }));
+      if (message.t === "time.sync") {
+        // t1 is stamped with the server's clock. The browser's Cristian offset
+        // is computed from this, so a client-supplied t1 is useless.
+        ws.send(JSON.stringify({ t: "time.sync", t0: message.t0, t1: Date.now() }));
+        return;
+      }
+
+      // Every room.* command lands here. Wired up in the next task.
     });
 
     const drop = () => {
       hub.remove(ws);
-      hub.publish({ t: "presence", online: hub.online });
+      hub.publish({ t: "presence", online: hub.online, inRoom: [] });
     };
 
     ws.on("close", drop);

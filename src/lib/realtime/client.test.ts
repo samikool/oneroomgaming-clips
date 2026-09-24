@@ -60,9 +60,9 @@ describe("createRealtimeClient", () => {
     const seen: ServerMessage[] = [];
     client.on((m) => seen.push(m));
     socket.open();
-    socket.deliver({ t: "presence", online: ["sam"] });
+    socket.deliver({ t: "presence", online: ["sam"], inRoom: [] });
 
-    expect(seen).toEqual([{ t: "presence", online: ["sam"] }]);
+    expect(seen).toEqual([{ t: "presence", online: ["sam"], inRoom: [] }]);
     client.close();
   });
 
@@ -93,7 +93,7 @@ describe("createRealtimeClient", () => {
     const off = client.on((m) => seen.push(m));
     socket.open();
     off();
-    socket.deliver({ t: "presence", online: ["sam"] });
+    socket.deliver({ t: "presence", online: ["sam"], inRoom: [] });
 
     expect(seen).toEqual([]);
     client.close();
@@ -177,9 +177,9 @@ describe("createRealtimeClient", () => {
     socket.open();
     socket.sent.length = 0;
 
-    client.send({ t: "sub", topics: ["room"] });
+    client.send({ t: "room.join" });
 
-    expect(JSON.parse(socket.sent[0])).toEqual({ t: "sub", topics: ["room"] });
+    expect(JSON.parse(socket.sent[0])).toEqual({ t: "room.join" });
     client.close();
   });
 
@@ -195,7 +195,7 @@ describe("createRealtimeClient", () => {
       delayFor: () => 1,
     });
 
-    expect(() => client.send({ t: "sub", topics: ["room"] })).not.toThrow();
+    expect(() => client.send({ t: "room.join" })).not.toThrow();
     client.close();
   });
 });

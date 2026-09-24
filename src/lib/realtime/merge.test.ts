@@ -43,7 +43,7 @@ describe("mergeClip", () => {
 
   it("ignores messages that are not about clips", () => {
     const state: ClipMap = { b };
-    expect(mergeClip(state, { t: "presence", online: ["sam"] })).toBe(state);
+    expect(mergeClip(state, { t: "presence", online: ["sam"], inRoom: [] })).toBe(state);
   });
 
   it("returns the same object when nothing changed, so React can skip a render", () => {
