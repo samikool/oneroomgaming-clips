@@ -368,7 +368,35 @@ REALTIME_URL=http://127.0.0.1:3001 \
 
 Browse `http://<this-host>:3002`.
 
-**There is no Caddy in dev any more.** It used to do two jobs, both now native:
+### The `clips-dev-preview` container
+
+Port **3000** is a `caddy:2` container called `clips-dev-preview`, started
+with a raw `docker run` — **not** by `~/git/containers/do.sh`, which only
+manages the folders under it. `docker inspect` is the only way to find its
+config:
+
+```bash
+docker inspect clips-dev-preview --format '{{range .Mounts}}{{.Source}}:{{.Destination}}
+{{end}}'
+```
+
+It runs `--network host` and bind-mounts `dev/Caddyfile` and `data/media`.
+**Editing `dev/Caddyfile` does not reach it** — Docker binds single files by
+inode, so a restart re-reads nothing. It must be recreated:
+
+```bash
+docker rm -f clips-dev-preview
+docker run -d --name clips-dev-preview --network host --restart no \
+  -v "$PWD/dev/Caddyfile:/etc/caddy/Caddyfile:ro" \
+  -v "$PWD/data/media:/srv/media:ro" \
+  caddy:2 caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+It sat for 22 hours running a Caddyfile from before the `/ws` route existed,
+so `:3000/ws` returned 404 and every live feature was silently dead there
+while `:3002` worked.
+
+**Nothing in dev requires this container.** It used to do two jobs, both now native:
 
 - `/media/*` is served by Next from `public/media`, a gitignored symlink to
   `data/media`. Next handles Range requests (verified: `206`), so seeking
