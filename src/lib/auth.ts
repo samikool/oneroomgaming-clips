@@ -48,3 +48,59 @@ export function parseAuthentikHeaders(headers: HeaderBag): AuthenticatedUser {
     displayName: readHeader(headers, NAME_HEADER),
   };
 }
+
+/**
+ * The identity for a request, with a development fallback.
+ *
+ * Lives here rather than in `session.ts` because the realtime process needs
+ * it too, and `session.ts` imports `next/headers` and the database — neither
+ * of which may cross into `src/realtime/`.
+ *
+ * The fallback is inert in production: `NODE_ENV=production` is set in the
+ * Dockerfile and in both compose services, and a missing header throws there
+ * however `DEV_AUTH_USERNAME` is set.
+ */
+export function resolveIdentity(
+  headers: HeaderBag,
+  env: Partial<NodeJS.ProcessEnv> = process.env,
+): AuthenticatedUser {
+  try {
+    return parseAuthentikHeaders(headers);
+  } catch (error) {
+    if (!(error instanceof MissingAuthHeadersError)) {
+      throw error;
+    }
+
+    const fallback = env.DEV_AUTH_USERNAME?.trim();
+
+    if (env.NODE_ENV !== "production" && fallback) {
+      return { username: fallback, email: null, displayName: fallback };
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * A `?user=` override for local development, so one machine can be two
+ * people.
+ *
+ * Without it every dev tab is `DEV_AUTH_USERNAME`, the room treats them as
+ * one person, and watch-together, presence and chat cannot be tested at all.
+ * Returns null in production, whatever the query string says.
+ */
+export function devIdentityOverride(
+  url: string | undefined,
+  env: Partial<NodeJS.ProcessEnv> = process.env,
+): string | null {
+  if (env.NODE_ENV === "production" || !url) {
+    return null;
+  }
+
+  try {
+    const name = new URL(url, "http://localhost").searchParams.get("user")?.trim();
+    return name && name.length > 0 ? name : null;
+  } catch {
+    return null;
+  }
+}

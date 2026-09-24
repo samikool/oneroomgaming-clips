@@ -32,9 +32,13 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    // In production the socket is same-origin: Caddy routes /ws to the
+    // realtime container, and this env var is unset. In local development
+    // there is no proxy in front of Next, so it points straight at the
+    // realtime process.
     const scheme = location.protocol === "https:" ? "wss" : "ws";
     const client = createRealtimeClient({
-      url: `${scheme}://${location.host}/ws`,
+      url: process.env.NEXT_PUBLIC_REALTIME_WS_URL || `${scheme}://${location.host}/ws`,
       topics: currentTopics(),
     });
     clientRef.current = client;

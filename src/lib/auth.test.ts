@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { MissingAuthHeadersError, parseAuthentikHeaders } from "@/lib/auth";
+import {
+  devIdentityOverride,
+  MissingAuthHeadersError,
+  parseAuthentikHeaders,
+  resolveIdentity,
+} from "@/lib/auth";
 
 describe("parseAuthentikHeaders", () => {
   it("extracts identity from a Headers object", () => {
@@ -74,5 +79,54 @@ describe("parseAuthentikHeaders", () => {
     const headers = { "x-authentik-username": "sam, injected" };
 
     expect(parseAuthentikHeaders(headers).username).toBe("sam, injected");
+  });
+});
+
+describe("resolveIdentity", () => {
+  it("uses the Authentik headers when present", () => {
+    expect(
+      resolveIdentity({ "x-authentik-username": "sam" }, { NODE_ENV: "production" }).username,
+    ).toBe("sam");
+  });
+
+  it("throws in production when headers are missing, even with a fallback set", () => {
+    // The guard is what makes this safe to ship. NODE_ENV=production is set
+    // in the Dockerfile and in both compose services.
+    expect(() =>
+      resolveIdentity({}, { NODE_ENV: "production", DEV_AUTH_USERNAME: "sneaky" }),
+    ).toThrow(MissingAuthHeadersError);
+  });
+
+  it("falls back to DEV_AUTH_USERNAME outside production", () => {
+    expect(
+      resolveIdentity({}, { NODE_ENV: "development", DEV_AUTH_USERNAME: "localdev" }),
+    ).toEqual({ username: "localdev", email: null, displayName: "localdev" });
+  });
+
+  it("still throws outside production when no fallback is configured", () => {
+    expect(() => resolveIdentity({}, { NODE_ENV: "development" })).toThrow(
+      MissingAuthHeadersError,
+    );
+  });
+});
+
+describe("devIdentityOverride", () => {
+  it("reads a username from the query string outside production", () => {
+    // Without this there is no way to be two different people in dev, which
+    // makes watch-together, presence and chat untestable locally.
+    expect(devIdentityOverride("/ws?user=dave", { NODE_ENV: "development" })).toBe("dave");
+  });
+
+  it("is ignored in production", () => {
+    expect(devIdentityOverride("/ws?user=admin", { NODE_ENV: "production" })).toBeNull();
+  });
+
+  it("is null when no user is named", () => {
+    expect(devIdentityOverride("/ws", { NODE_ENV: "development" })).toBeNull();
+    expect(devIdentityOverride("/ws?user=", { NODE_ENV: "development" })).toBeNull();
+  });
+
+  it("survives a url it cannot parse", () => {
+    expect(devIdentityOverride(undefined, { NODE_ENV: "development" })).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { WebSocketServer } from "ws";
-import { MissingAuthHeadersError, parseAuthentikHeaders } from "@/lib/auth";
+import { devIdentityOverride, MissingAuthHeadersError, resolveIdentity } from "@/lib/auth";
 import {
   parseClientMessage,
   type ClientMessage,
@@ -186,7 +186,9 @@ server.on("upgrade", (request, socket, head) => {
   let username: string;
 
   try {
-    username = parseAuthentikHeaders(request.headers).username;
+    // The dev ?user= override first, so one machine can be two people
+    // locally. It returns null in production whatever the query string says.
+    username = devIdentityOverride(request.url) ?? resolveIdentity(request.headers).username;
   } catch (error) {
     const status = error instanceof MissingAuthHeadersError
       ? "401 Unauthorized"

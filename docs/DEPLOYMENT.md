@@ -290,3 +290,109 @@ with distinct `X-Authentik-Username` headers and asserts on transitions):
 Room state is in memory and is **lost on every realtime restart**, by design.
 A deploy that recreates the realtime container empties the theater; whoever is
 watching is dropped back to a hostless, empty room and rejoins.
+
+### Milestone 6 — social
+
+Verified on 2026-09-24 against the dev stack. **No migration** — the whole
+social schema (`tags`, `clip_tags`, `clip_participants`, `comments`, `views`,
+`games`) landed in milestone 2 and had been sitting unused.
+
+**Verified by driving the live realtime service with four identities over real
+sockets:**
+
+- A chat message reached the other socket with the right author.
+- A burst of five from one user delivered **0** — that user's cooldown had
+  already been spent by the preceding message, which is the rule working. The
+  unit test covers the from-cold case, where a burst of five delivers 1.
+- A reaction fanned out with its author; an emoji outside the allowlist was
+  ignored entirely.
+- A latecomer subscribing to `room` received `chat.backlog` containing the
+  message sent before it connected.
+- A socket subscribed only to `grid` never saw a chat frame.
+
+**Verified end to end through the database and `/emit`:**
+
+- A comment persisted to SQLite and its `comment.added` frame reached a `grid`
+  subscriber with the matching `clipId`.
+- Setting tags and a game rendered chips on the clip page linking to
+  `/?tag=…` and `/?game=…`.
+- Filtering narrows correctly: 3 cards unfiltered, 1 for `?tag=ace`, 1 for
+  `?game=valorant`, 0 for a combination matching nothing.
+- `live` flips to `false` on every filtered view, so a new clip cannot pop
+  into a grid it does not match.
+- A card footer renders `href="/?game=valorant"` and following it narrows the
+  grid — click-to-filter works from cards, not just the clip page.
+- Disk usage renders ("53.8 KB stored").
+
+**Verified by request, with the realtime service stopped:**
+
+- `/`, `/theater`, `/upload`, `/changelog`, `/?tag=ace` and `/clips/<id>` all
+  served 200.
+- A comment posted with realtime down still saved, and `announceComment` did
+  not throw.
+- Zero unhandled rejections in the Next log. (Three 500s appear earlier in
+  that log, from a transient mid-edit window during milestone 5 when
+  `/theater/page.tsx` existed before its component did; ~100 clean requests
+  follow them.)
+
+**NOT verified — needs a browser, which this session did not have:**
+
+- The chat composer, and Escape blurring it rather than being swallowed
+  (Escape is how the browser leaves fullscreen).
+- Reactions actually floating up over the video, and the reduced-motion
+  fallback.
+- The Edit/Done toggle on the metadata panel and the three save forms.
+- Comment deletion from the UI, and the optimistic tombstone.
+- Filter chips being clicked to remove a filter.
+
+The theater chat backlog is in memory alongside room state and is **lost on
+every realtime restart**. A deploy empties both. Comments, tags, games and
+participants are in SQLite and survive.
+
+
+## Running the dev stack (no Caddy needed)
+
+Two processes. Next serves everything, including media.
+
+```bash
+# 1. realtime — the socket service
+DEV_AUTH_USERNAME=localdev EMIT_SECRET=devsecret REALTIME_PORT=3001 \
+  bun src/realtime/index.ts
+
+# 2. web — Next, bound externally so another machine can reach it
+NEXT_PUBLIC_REALTIME_WS_URL=ws://<this-host>:3001/ws \
+DEV_AUTH_USERNAME=localdev EMIT_SECRET=devsecret \
+REALTIME_URL=http://127.0.0.1:3001 \
+  bun --bun next dev -H 0.0.0.0 -p 3002
+```
+
+Browse `http://<this-host>:3002`.
+
+**There is no Caddy in dev any more.** It used to do two jobs, both now native:
+
+- `/media/*` is served by Next from `public/media`, a gitignored symlink to
+  `data/media`. Next handles Range requests (verified: `206`), so seeking
+  works. Production still uses Caddy's `file_server`, which is the
+  load-bearing performance property — bytes never go through Node there.
+- The socket connects straight to the realtime process via
+  `NEXT_PUBLIC_REALTIME_WS_URL`. Unset in production, where the browser uses
+  same-origin `/ws` and Caddy routes it.
+
+Create the symlink once if it is missing:
+
+```bash
+ln -sfn ../data/media public/media
+```
+
+**Two identities on one machine.** Everything social needs more than one
+person. `?user=<name>` on the socket URL overrides the identity, so a second
+tab can be someone else:
+
+```
+NEXT_PUBLIC_REALTIME_WS_URL=ws://<host>:3001/ws?user=dave
+```
+
+Or open a second browser with that env set. The override and the
+`DEV_AUTH_USERNAME` fallback are both dead in production: `NODE_ENV=production`
+is set in the Dockerfile and in both compose services, and a request with no
+`X-Authentik-Username` throws there regardless of what the query string says.
