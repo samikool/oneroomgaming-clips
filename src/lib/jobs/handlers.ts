@@ -1,7 +1,7 @@
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { applyProbe, recordMediaFile, setClipStatus, setClipThumb } from "@/db/clips";
-import { enqueueJob } from "@/db/jobs";
+import { enqueueStage } from "@/db/jobs";
 import type { JobType } from "@/db/schema";
 import { isBrowserPlayable } from "@/lib/media/codecs";
 import {
@@ -38,7 +38,7 @@ const probe: JobHandler = async (ctx, job) => {
   }
 
   setClipStatus(ctx.db, job.clipId, "processing");
-  enqueueJob(ctx.db, job.clipId, "remux");
+  enqueueStage(ctx.db, job.clipId, "remux");
 };
 
 const remux: JobHandler = async (ctx, job) => {
@@ -55,8 +55,7 @@ const remux: JobHandler = async (ctx, job) => {
     isDefault: true,
   });
 
-  rmSync(input, { force: true });
-  enqueueJob(ctx.db, job.clipId, "thumbnail");
+  enqueueStage(ctx.db, job.clipId, "thumbnail");
 };
 
 const thumbnail: JobHandler = async (ctx, job) => {
@@ -67,6 +66,7 @@ const thumbnail: JobHandler = async (ctx, job) => {
 
   setClipThumb(ctx.db, job.clipId, thumbPublicPath(job.clipId));
   setClipStatus(ctx.db, job.clipId, "ready");
+  rmSync(incomingPath(ctx, job.clipId), { force: true });
 };
 
 const transcode: JobHandler = async () => {

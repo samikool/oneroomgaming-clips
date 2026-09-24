@@ -28,6 +28,14 @@ export function enqueueJob(
     .get();
 }
 
+// Pipeline stages are single-use. Retrying a stage after a restart must not
+// create a second copy of its successor, even if that successor already ran.
+export function enqueueStage(db: Db, clipId: string, type: JobType): Job {
+  return db.select().from(jobs)
+    .where(and(eq(jobs.clipId, clipId), eq(jobs.type, type))).get()
+    ?? enqueueJob(db, clipId, type);
+}
+
 export function claimNextJob(db: Db, now: Date = new Date()): Job | undefined {
   const next = db
     .select()
@@ -78,4 +86,13 @@ export function failJob(
     })
     .where(eq(jobs.id, id))
     .run();
+}
+
+/** Single web worker: jobs left running by a stopped process can be retried. */
+export function recoverRunningJobs(db: Db): void {
+  for (const job of db.select().from(jobs).where(eq(jobs.status, "running")).all()) {
+    // A restart is not a processing failure; preserve the retry budget.
+    db.update(jobs).set({ status: "queued", attempts: Math.max(0, job.attempts - 1), startedAt: null })
+      .where(eq(jobs.id, job.id)).run();
+  }
 }

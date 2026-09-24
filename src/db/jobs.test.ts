@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import { ulid } from "ulid";
 import { createDb, type Db } from "@/db/client";
 import { clips, jobs } from "@/db/schema";
-import { claimNextJob, completeJob, enqueueJob, failJob, MAX_ATTEMPTS } from "@/db/jobs";
+import { claimNextJob, completeJob, enqueueJob, failJob, recoverRunningJobs, enqueueStage, MAX_ATTEMPTS } from "@/db/jobs";
 
 let db: Db;
 let clipId: string;
@@ -80,5 +80,23 @@ describe("job queue", () => {
     }
 
     expect(claimNextJob(db)).toBeUndefined();
+  });
+});
+
+
+describe("restart recovery", () => {
+  it("reclaims interrupted jobs without consuming the retry budget", () => {
+    const job = enqueueJob(db, clipId, "probe");
+    claimNextJob(db);
+    recoverRunningJobs(db);
+    const retried = claimNextJob(db);
+    expect(retried?.id).toBe(job.id);
+    expect(retried?.attempts).toBe(1);
+  });
+  it("does not duplicate the next stage after its predecessor is retried", () => {
+    const job = enqueueStage(db, clipId, "thumbnail");
+    completeJob(db, job.id);
+    expect(enqueueStage(db, clipId, "thumbnail").id).toBe(job.id);
+    expect(db.select().from(jobs).all()).toHaveLength(1);
   });
 });

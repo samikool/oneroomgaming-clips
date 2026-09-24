@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { ulid } from "ulid";
 import type { Db } from "./client";
 import { clips, mediaFiles, type Clip, type ClipStatus } from "./schema";
@@ -84,6 +84,8 @@ export function recordMediaFile(
   input: { kind: string; path: string; info: MediaInfo; isDefault: boolean },
   now: Date = new Date(),
 ): void {
+  db.transaction(() => {
+  db.delete(mediaFiles).where(and(eq(mediaFiles.clipId, clipId), eq(mediaFiles.kind, input.kind))).run();
   db.insert(mediaFiles)
     .values({
       id: ulid(),
@@ -101,6 +103,7 @@ export function recordMediaFile(
       createdAt: now,
     })
     .run();
+  });
 }
 
 export function listReadyClips(db: Db, limit = 100): Clip[] {

@@ -1,6 +1,6 @@
-import { existsSync, readdirSync, renameSync, statSync } from "node:fs";
+import { existsSync, readdirSync, renameSync, lstatSync } from "node:fs";
 import { basename, extname, join } from "node:path";
-import { createClip, deleteClip } from "@/db/clips";
+import { createClip } from "@/db/clips";
 import { enqueueJob } from "@/db/jobs";
 import type { JobContext } from "@/lib/jobs/types";
 import { clipFilename, incomingDir } from "@/lib/media/paths";
@@ -50,30 +50,25 @@ export async function scanIncoming(
     // single permission error or a file deleted between readdir and stat would
     // silently strand every later entry until the next scan.
     try {
-      const stats = statSync(source);
+      const stats = lstatSync(source);
 
-      if (now - stats.mtimeMs < STABLE_AFTER_MS) {
+      if (!stats.isFile() || now - stats.mtimeMs < STABLE_AFTER_MS) {
         continue;
       }
 
-      const clip = createClip(ctx.db, {
-        title: basename(entry, ext),
-        originalFilename: entry,
-        sizeBytes: stats.size,
+      // Queue first in the same transaction as the row. A failed insert leaves
+      // the source untouched; a failed rename rolls both database writes back.
+      const clip = ctx.db.transaction(() => {
+        const clip = createClip(ctx.db, {
+          title: basename(entry, ext),
+          originalFilename: entry,
+          sizeBytes: stats.size,
+        });
+        enqueueJob(ctx.db, clip.id, "probe");
+        renameSync(source, join(dir, clipFilename(clip.id)));
+        return clip;
       });
 
-      try {
-        renameSync(source, join(dir, clipFilename(clip.id)));
-      } catch (error) {
-        // Roll the row back. Leaving it would strand a `pending` clip with no
-        // file and no job — and because the source keeps its original name, the
-        // next scan would create a SECOND clip for it, which is exactly the
-        // duplication the ULID guard exists to prevent.
-        deleteClip(ctx.db, clip.id);
-        throw error;
-      }
-
-      enqueueJob(ctx.db, clip.id, "probe");
       created.push(clip.id);
     } catch (error) {
       console.error(`ingest: failed to ingest ${entry}`, error);

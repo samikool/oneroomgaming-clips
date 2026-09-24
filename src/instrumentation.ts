@@ -12,6 +12,12 @@ export async function register() {
   const ctx = { db: getDb(), env: process.env };
   const SCAN_INTERVAL_MS = 5000;
 
+  const state = globalThis as typeof globalThis & { clipsPipelineStarted?: boolean };
+  if (state.clipsPipelineStarted) return;
+  state.clipsPipelineStarted = true;
+
+  const { recoverRunningJobs } = await import("@/db/jobs");
+  recoverRunningJobs(ctx.db);
   startRunner(ctx);
 
   const scan = async () => {

@@ -57,7 +57,7 @@ describe("probe handler", () => {
 });
 
 describe("remux handler", () => {
-  it("produces a faststart clip, removes the incoming file, and queues a thumbnail", async () => {
+  it("produces a faststart clip, retains the incoming file until the pipeline completes, and queues a thumbnail", async () => {
     const clip = createClip(db, { title: "a", originalFilename: "a.mp4", sizeBytes: 0 });
     const input = join(root, "incoming", `${clip.id}.mp4`);
     await makeSample(input);
@@ -70,7 +70,7 @@ describe("remux handler", () => {
     await handlers.remux({ db, env }, remuxJob);
 
     expect(existsSync(join(root, "clips", `${clip.id}.mp4`))).toBe(true);
-    expect(existsSync(input)).toBe(false);
+    expect(existsSync(input)).toBe(true);
 
     const queued = db.select().from(jobsTable).where(eq(jobsTable.status, "queued")).all();
     expect(queued.map((j) => j.type)).toContain("thumbnail");

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -72,4 +72,17 @@ describe("scanIncoming", () => {
     expect(await scanIncoming({ db, env })).toHaveLength(0);
     expect(listAllClips(db)).toHaveLength(0);
   });
+});
+
+
+it("preserves the source and rolls back the clip when enqueueing fails", async () => {
+  const { sql } = await import("drizzle-orm");
+  db.run(sql.raw("CREATE TRIGGER reject_jobs BEFORE INSERT ON jobs BEGIN SELECT RAISE(FAIL, 'test failure'); END"));
+  writeFileSync(join(root, "incoming", "retry.mp4"), "x");
+  const log = spyOn(console, "error").mockImplementation(() => {});
+  try {
+    expect(await scanIncoming({ db, env }, Date.now() + 60_000)).toEqual([]);
+    expect(listAllClips(db)).toHaveLength(0);
+    expect(existsSync(join(root, "incoming", "retry.mp4"))).toBe(true);
+  } finally { log.mockRestore(); }
 });
