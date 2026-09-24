@@ -1,6 +1,7 @@
 import { claimNextJob, completeJob, failJob } from "@/db/jobs";
 import { setClipStatus } from "@/db/clips";
 import { removeSourceArtifacts } from "@/lib/media/cleanup";
+import { announceClipUpdated } from "@/lib/events/clips";
 import { handlers } from "./handlers";
 import type { JobContext } from "./types";
 
@@ -25,6 +26,11 @@ export async function runOnce(ctx: JobContext): Promise<boolean> {
     }
     console.error(`job ${job.type} failed for clip ${job.clipId}: ${message}`);
   }
+
+  // One announce covers every pipeline transition — processing, ready,
+  // needs_transcode, failed — without instrumenting each status setter.
+  // It cannot fail the job: publish swallows its own errors.
+  await announceClipUpdated(ctx.db, job.clipId, ctx.env);
 
   return true;
 }

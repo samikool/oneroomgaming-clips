@@ -4,6 +4,7 @@ import { createClip } from "@/db/clips";
 import { enqueueJob } from "@/db/jobs";
 import type { JobContext } from "@/lib/jobs/types";
 import { clipFilename, incomingDir } from "@/lib/media/paths";
+import { announceClipAdded } from "@/lib/events/clips";
 
 export const VIDEO_EXTENSIONS: ReadonlySet<string> = new Set([
   ".mp4", ".mov", ".mkv", ".webm", ".avi",
@@ -73,6 +74,12 @@ export async function scanIncoming(
     } catch (error) {
       console.error(`ingest: failed to ingest ${entry}`, error);
     }
+  }
+
+  // Announced after the loop, not inside it: the loop body is synchronous so
+  // the row and its job are already committed by the time we get here.
+  for (const id of created) {
+    await announceClipAdded(ctx.db, id, ctx.env);
   }
 
   return created;

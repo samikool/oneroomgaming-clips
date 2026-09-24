@@ -1,5 +1,5 @@
 import { FileStore } from "@tus/file-store";
-import { MemoryLocker, Server, type Upload } from "@tus/server";
+import { EVENTS, MemoryLocker, Server, type Upload } from "@tus/server";
 import { existsSync, linkSync, mkdirSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import { ulid } from "ulid";
@@ -11,11 +11,19 @@ import { MissingAuthHeadersError } from "@/lib/auth";
 import { resolveIdentity } from "@/lib/session";
 import { incomingDir } from "@/lib/media/paths";
 import { VIDEO_EXTENSIONS } from "@/lib/ingest/scan";
+import { announceClipAdded } from "@/lib/events/clips";
+import { publish } from "@/lib/realtime/publish";
 
 export const UPLOAD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const ID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 const PATH = "/api/uploads";
 const error = (status_code: number, body: string) => ({ status_code, body });
+
+/** Whole-percent upload progress, clamped and NaN-free for an unknown size. */
+export function progressPercent(offset: number, size: number | undefined): number {
+  if (!size || size <= 0) return 0;
+  return Math.min(100, Math.round((offset / size) * 100));
+}
 
 export function createUploadService(db: Db, env: NodeJS.ProcessEnv = process.env) {
   const incoming = incomingDir(env);
@@ -27,9 +35,9 @@ export function createUploadService(db: Db, env: NodeJS.ProcessEnv = process.env
   // No async gap between checking the clip and committing the handoff. The tus
   // data remains available for HEAD after a lost final response. Hard links use
   // no additional media bytes and stay on the same filesystem as incoming/.
-  function finish(upload: Upload) {
-    if (upload.offset !== upload.size || !upload.size) return;
-    if (getClip(db, upload.id)) return;
+  function finish(upload: Upload): string | undefined {
+    if (upload.offset !== upload.size || !upload.size) return undefined;
+    if (getClip(db, upload.id)) return undefined;
     const metadata = upload.metadata!;
     const destination = join(incoming, `${upload.id}.mp4`);
     if (!existsSync(destination)) linkSync(join(directory, upload.id), destination);
@@ -43,13 +51,17 @@ export function createUploadService(db: Db, env: NodeJS.ProcessEnv = process.env
       });
       enqueueStage(db, upload.id, "probe");
     });
+
+    return upload.id;
   }
 
-  const server = new Server({
+  const server: Server = new Server({
     path: PATH,
     datastore: store,
     locker,
     relativeLocation: true,
+    // tus throttles POST_RECEIVE for us, so no hand-rolled rate limiting.
+    postReceiveInterval: 1000,
     allowedOrigins: [],
     disableTerminationForFinishedUploads: true,
     namingFunction: () => ulid(),
@@ -78,7 +90,11 @@ export function createUploadService(db: Db, env: NodeJS.ProcessEnv = process.env
       return { metadata: { filename, title, owner: user.authentikUsername, uploaderId: user.id } };
     },
     async onUploadFinish(_req, upload) {
-      finish(upload);
+      // Announced after finish returns, never inside it: finish is
+      // deliberately synchronous so the runner can never observe a clip row
+      // whose file is absent, and an await in there would open that gap.
+      const created = finish(upload);
+      if (created) await announceClipAdded(db, created, env);
       return { headers: { "X-Clip-Id": upload.id } };
     },
     onResponseError(_req, err) {
@@ -86,6 +102,27 @@ export function createUploadService(db: Db, env: NodeJS.ProcessEnv = process.env
       console.error("upload request failed", err);
       return error(500, "Upload could not be saved. Retry to resume.");
     },
+  });
+
+  // Progress is ephemeral: the hub drops it for a backed-up socket, and a
+  // publish failure here must never disturb an upload in flight, so the
+  // promise is deliberately not awaited on the request path.
+  server.on(EVENTS.POST_RECEIVE, (_stream, upload: Upload) => {
+    const owner = upload.metadata?.owner;
+
+    if (!owner) {
+      return;
+    }
+
+    void publish(
+      {
+        t: "upload.progress",
+        uploadId: upload.id,
+        pct: progressPercent(upload.offset, upload.size),
+        user: owner,
+      },
+      env,
+    );
   });
 
   async function handle(req: Request): Promise<Response> {
@@ -120,7 +157,9 @@ export function createUploadService(db: Db, env: NodeJS.ProcessEnv = process.env
       await lock.lock(new AbortController().signal, () => {});
       try {
         const upload = await store.getUpload(id);
-        finish(upload); // Recover a crash after the last byte but before handoff.
+        // Recover a crash after the last byte but before handoff.
+        const recovered = finish(upload);
+        if (recovered) await announceClipAdded(db, recovered, env);
         if (now > new Date(upload.creation_date!).getTime() + UPLOAD_TTL_MS) {
           await store.remove(id); // Published clip links/renditions are unaffected.
         }

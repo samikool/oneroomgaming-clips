@@ -1,11 +1,11 @@
-import { afterEach, beforeEach, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createDb, type Db } from "@/db/client";
 import { listAllClips } from "@/db/clips";
 import { jobs, users } from "@/db/schema";
-import { createUploadService, UPLOAD_TTL_MS } from "./server";
+import { createUploadService, progressPercent, UPLOAD_TTL_MS } from "./server";
 import { runOnce } from "@/lib/jobs/runner";
 import { scanIncoming } from "@/lib/ingest/scan";
 
@@ -123,4 +123,25 @@ it("processes a real video uploaded in two chunks into a playable clip", async (
   expect(existsSync(join(root, "clips", `${clip.id}.mp4`))).toBe(true);
   expect(existsSync(join(root, "thumbs", `${clip.id}.jpg`))).toBe(true);
   expect(existsSync(join(root, "incoming", `${clip.id}.mp4`))).toBe(false);
+});
+
+describe("progressPercent", () => {
+  it("rounds to a whole percentage", () => {
+    expect(progressPercent(1, 3)).toBe(33);
+    expect(progressPercent(2, 3)).toBe(67);
+  });
+
+  it("is 0 at the start and 100 at the end", () => {
+    expect(progressPercent(0, 100)).toBe(0);
+    expect(progressPercent(100, 100)).toBe(100);
+  });
+
+  it("returns 0 rather than NaN for an unknown size", () => {
+    expect(progressPercent(10, 0)).toBe(0);
+    expect(progressPercent(10, undefined)).toBe(0);
+  });
+
+  it("never exceeds 100 if the offset overshoots", () => {
+    expect(progressPercent(120, 100)).toBe(100);
+  });
 });
