@@ -1,3 +1,4 @@
+import { ClipPlayer } from "@/components/clip-player";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getDb } from "@/db/client";
@@ -31,13 +32,7 @@ export default async function ClipPage({
         {formatDuration(clip.durationMs)}
         {clip.width && clip.height ? ` · ${clip.width}×${clip.height}` : ""}
       </p>
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <video
-        className="w-full rounded-lg bg-black"
-        src={clipPublicPath(clip.id)}
-        controls
-        preload="metadata"
-      />
+      <ClipPlayer src={clipPublicPath(clip.id)} />
     </main>
   );
 }

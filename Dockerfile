@@ -21,12 +21,16 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/realtime.js ./realtime.js
-COPY --from=builder /app/drizzle ./drizzle
-COPY --from=builder /app/content ./content
+COPY --from=builder --chown=bun:bun /app/.next/standalone ./
+COPY --from=builder --chown=bun:bun /app/.next/static ./.next/static
+COPY --from=builder --chown=bun:bun /app/public ./public
+COPY --from=builder --chown=bun:bun /app/realtime.js ./realtime.js
+COPY --from=builder --chown=bun:bun /app/drizzle ./drizzle
+COPY --from=builder --chown=bun:bun /app/content ./content
+
+RUN mkdir -p /data /media && chown bun:bun /data /media
+ENV MEDIA_ROOT=/media
+USER bun
 
 EXPOSE 3000 3001
 CMD ["bun", "server.js"]

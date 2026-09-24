@@ -1,9 +1,9 @@
-import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { applyProbe, recordMediaFile, setClipStatus, setClipThumb } from "@/db/clips";
 import { enqueueStage } from "@/db/jobs";
 import type { JobType } from "@/db/schema";
 import { isBrowserPlayable } from "@/lib/media/codecs";
+import { removeSourceArtifacts } from "@/lib/media/cleanup";
 import {
   clipFilename, clipsDir, incomingDir, thumbFilename,
   thumbPublicPath, thumbsDir,
@@ -34,6 +34,7 @@ const probe: JobHandler = async (ctx, job) => {
       "needs_transcode",
       `unsupported codecs: ${info.videoCodec}/${info.audioCodec}`,
     );
+    removeSourceArtifacts(ctx.env, job.clipId);
     return;
   }
 
@@ -66,7 +67,7 @@ const thumbnail: JobHandler = async (ctx, job) => {
 
   setClipThumb(ctx.db, job.clipId, thumbPublicPath(job.clipId));
   setClipStatus(ctx.db, job.clipId, "ready");
-  rmSync(incomingPath(ctx, job.clipId), { force: true });
+  removeSourceArtifacts(ctx.env, job.clipId);
 };
 
 const transcode: JobHandler = async () => {

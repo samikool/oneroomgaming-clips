@@ -32,5 +32,12 @@ export async function register() {
     setTimeout(scan, SCAN_INTERVAL_MS);
   };
 
+  const { getUploadService } = await import("@/lib/uploads/server");
+  const maintainUploads = async () => {
+    try { await getUploadService().sweep(); }
+    catch (error) { console.error("upload maintenance failed", error); }
+    setTimeout(maintainUploads, 60_000);
+  };
+  void maintainUploads();
   void scan();
 }

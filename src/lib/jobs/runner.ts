@@ -1,5 +1,6 @@
 import { claimNextJob, completeJob, failJob } from "@/db/jobs";
 import { setClipStatus } from "@/db/clips";
+import { removeSourceArtifacts } from "@/lib/media/cleanup";
 import { handlers } from "./handlers";
 import type { JobContext } from "./types";
 
@@ -15,8 +16,13 @@ export async function runOnce(ctx: JobContext): Promise<boolean> {
     completeJob(ctx.db, job.id);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    failJob(ctx.db, job.id, message);
-    setClipStatus(ctx.db, job.clipId, "failed", message);
+    const exhausted = failJob(ctx.db, job.id, message);
+    if (exhausted) {
+      // Retries are spent; the clip is permanently stuck, and its
+      // pre-publish source bytes will never be consumed by a later stage.
+      setClipStatus(ctx.db, job.clipId, "failed", message);
+      removeSourceArtifacts(ctx.env, job.clipId);
+    }
     console.error(`job ${job.type} failed for clip ${job.clipId}: ${message}`);
   }
 

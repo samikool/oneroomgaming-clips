@@ -8,3 +8,7 @@ node_modules/
 *.db-wal
 /data
 next-env.d.ts
+
+.playwright-cli/
+output/
+*.tsbuildinfo

@@ -56,6 +56,25 @@ describe("probe handler", () => {
   });
 });
 
+describe("probe handler (unsupported codec)", () => {
+  it("marks the clip needs_transcode and removes the incoming source", async () => {
+    const clip = createClip(db, { title: "a", originalFilename: "a.mp4", sizeBytes: 0 });
+    const input = join(root, "incoming", `${clip.id}.mp4`);
+    await makeSample(input, ["-c:v", "mpeg4"]);
+
+    const job = enqueueJob(db, clip.id, "probe");
+    claimNextJob(db);
+    await handlers.probe({ db, env }, job);
+
+    const updated = db.select().from(clipsTable).where(eq(clipsTable.id, clip.id)).get();
+    expect(updated?.status).toBe("needs_transcode");
+
+    // A clip that never reaches `thumbnail` must still have its pre-publish
+    // source bytes cleaned up, not left to leak forever.
+    expect(existsSync(input)).toBe(false);
+  });
+});
+
 describe("remux handler", () => {
   it("produces a faststart clip, retains the incoming file until the pipeline completes, and queues a thumbnail", async () => {
     const clip = createClip(db, { title: "a", originalFilename: "a.mp4", sizeBytes: 0 });

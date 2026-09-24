@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createDb, type Db } from "@/db/client";
-import { createClip } from "@/db/clips";
+import { createClip, getClip } from "@/db/clips";
 import { enqueueJob } from "@/db/jobs";
 import { jobs as jobsTable } from "@/db/schema";
 import { runOnce, startRunner } from "@/lib/jobs/runner";
@@ -27,6 +27,21 @@ describe("runOnce", () => {
     const job = db.select().from(jobsTable).get();
     expect(job?.status).toBe("failed");
     expect(job?.lastError).toContain("not implemented");
+  });
+
+  it("does not mark the clip failed while the job still has retries left", async () => {
+    const clip = createClip(db, { title: "a", originalFilename: "a.mp4", sizeBytes: 1 });
+    enqueueJob(db, clip.id, "transcode");
+
+    // First attempt of 3: the job is requeued, not permanently failed. The
+    // clip must not be told it's failed while a retry is still coming.
+    expect(await runOnce({ db, env: {} })).toBe(true);
+    expect(getClip(db, clip.id)?.status).not.toBe("failed");
+
+    // Exhaust the remaining attempts; only now is the clip truly stuck.
+    expect(await runOnce({ db, env: {} })).toBe(true);
+    expect(await runOnce({ db, env: {} })).toBe(true);
+    expect(getClip(db, clip.id)?.status).toBe("failed");
   });
 
   it("does not throw when a handler throws", async () => {

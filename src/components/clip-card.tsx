@@ -1,8 +1,8 @@
 import Link from "next/link";
-import type { Clip } from "@/db/schema";
+import type { Clip, ClipStatus } from "@/db/schema";
 import { formatDuration } from "@/lib/format";
 
-const STATUS_LABEL: Record<string, string> = {
+const STATUS_LABEL: Partial<Record<ClipStatus, string>> = {
   pending: "Queued",
   processing: "Processing",
   needs_transcode: "Unsupported format",

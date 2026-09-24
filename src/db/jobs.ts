@@ -64,16 +64,21 @@ export function completeJob(db: Db, id: string, now: Date = new Date()): void {
     .run();
 }
 
+/**
+ * Requeues the job while it still has retries left, or marks it failed once
+ * the attempt budget is exhausted. Returns whether it was exhausted, so
+ * callers can tell a permanent failure from one that will still retry.
+ */
 export function failJob(
   db: Db,
   id: string,
   error: string,
   now: Date = new Date(),
-): void {
+): boolean {
   const job = db.select().from(jobs).where(eq(jobs.id, id)).get();
 
   if (!job) {
-    return;
+    return false;
   }
 
   const exhausted = job.attempts >= MAX_ATTEMPTS;
@@ -86,6 +91,8 @@ export function failJob(
     })
     .where(eq(jobs.id, id))
     .run();
+
+  return exhausted;
 }
 
 /** Single web worker: jobs left running by a stopped process can be retried. */

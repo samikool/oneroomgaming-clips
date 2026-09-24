@@ -7,6 +7,7 @@ import type { MediaInfo } from "@/lib/media/probe";
 export function createClip(
   db: Db,
   input: {
+    id?: string;
     title: string;
     originalFilename: string;
     sizeBytes: number;
@@ -18,7 +19,7 @@ export function createClip(
   return db
     .insert(clips)
     .values({
-      id: ulid(),
+      id: input.id ?? ulid(),
       title: input.title,
       originalFilename: input.originalFilename,
       uploaderId: input.uploaderId ?? null,

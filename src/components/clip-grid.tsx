@@ -5,7 +5,7 @@ export function ClipGrid({ clips }: { clips: Clip[] }) {
   if (clips.length === 0) {
     return (
       <p className="text-ink-muted">
-        No clips yet. Drop a video into the incoming folder and it will appear here.
+        No clips yet. Upload a video to give the room something to watch.
       </p>
     );
   }
