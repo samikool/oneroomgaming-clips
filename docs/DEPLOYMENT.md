@@ -224,23 +224,15 @@ to `ready`, and `web` logged `realtime: publish failed (...)` warnings with
 **zero** unhandled rejections and zero 500s. Publishing is genuinely
 fire-and-forget, not a new hard dependency on the pipeline.
 
-**Not verified here: the `/ws` proxy hop in local dev.** The dev Caddy on
-:3000 runs as root from a config this session could not reach, so its `/ws`
-route could not be reloaded. `dev/Caddyfile` in this repo now carries the
-route; restart that Caddy to pick it up. Production is unaffected — the
-`clips.oneroomgaming.com` vhost in `~/git/containers` has routed `/ws*` to
-`clips-realtime:3001` since milestone 1.
+**Not verified here: the `/ws` proxy hop in local dev.** Local dev went
+through a Caddy on :3000 at the time, which this session could not reload.
+That proxy has since been removed entirely — see "Running the dev stack"
+below. Production was never affected: the `clips.oneroomgaming.com` vhost has
+routed `/ws*` to `clips-realtime:3001` since milestone 1.
 
 ### Running the dev stack with realtime
 
-```bash
-EMIT_SECRET=devsecret REALTIME_PORT=3001 bun src/realtime/index.ts
-DEV_AUTH_USERNAME=localdev EMIT_SECRET=devsecret \
-  REALTIME_URL=http://127.0.0.1:3001 bun --bun next dev -H 0.0.0.0 -p 3002
-```
-
-Then a Caddy on :3000 using `dev/Caddyfile`, which serves `/media/*` off disk,
-proxies `/ws*` to 3001 and everything else to 3002.
+Superseded — see "Running the dev stack (no Caddy needed)" below.
 
 ### Milestone 5 — the theater
 
@@ -368,35 +360,21 @@ REALTIME_URL=http://127.0.0.1:3001 \
 
 Browse `http://<this-host>:3002`.
 
-### The `clips-dev-preview` container
+### There is no proxy in front of local dev
 
-Port **3000** is a `caddy:2` container called `clips-dev-preview`, started
-with a raw `docker run` — **not** by `~/git/containers/do.sh`, which only
-manages the folders under it. `docker inspect` is the only way to find its
-config:
+Port 3000 used to run a `caddy:2` container called `clips-dev-preview`,
+bind-mounting `dev/Caddyfile`. **Both are gone.** Next serves everything the
+dev stack needs, so the proxy earned nothing and cost three things: a container
+to recreate whenever the Caddyfile changed (Docker binds single files by inode,
+so a restart re-read nothing), a `dev/` directory that made `dev` ambiguous to
+git — `git log master..dev` errors with "ambiguous argument", and silently in a
+`&&` chain — and a name one character away from the `clips-dev-*` staging stack.
 
-```bash
-docker inspect clips-dev-preview --format '{{range .Mounts}}{{.Source}}:{{.Destination}}
-{{end}}'
-```
+Fidelity to production is now covered properly by real staging at
+dev.clips.oneroomgaming.com, which runs the same image behind the same Caddy
+and the same Authentik.
 
-It runs `--network host` and bind-mounts `dev/Caddyfile` and `data/media`.
-**Editing `dev/Caddyfile` does not reach it** — Docker binds single files by
-inode, so a restart re-reads nothing. It must be recreated:
-
-```bash
-docker rm -f clips-dev-preview
-docker run -d --name clips-dev-preview --network host --restart no \
-  -v "$PWD/dev/Caddyfile:/etc/caddy/Caddyfile:ro" \
-  -v "$PWD/data/media:/srv/media:ro" \
-  caddy:2 caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
-```
-
-It sat for 22 hours running a Caddyfile from before the `/ws` route existed,
-so `:3000/ws` returned 404 and every live feature was silently dead there
-while `:3002` worked.
-
-**Nothing in dev requires this container.** It used to do two jobs, both now native:
+Next covers both jobs the proxy used to do:
 
 - `/media/*` is served by Next from `public/media`, a gitignored symlink to
   `data/media`. Next handles Range requests (verified: `206`), so seeking
@@ -468,15 +446,14 @@ Production is **never** auto-updated: watchtower only touches containers
 carrying `com.centurylinklabs.watchtower.enable=true`, and production has no
 such label. Opt-in by label, so a container added later is safe by default.
 
-### Naming trap
+### Naming
 
-Three similarly-named things:
-
-- `clips-dev-preview` — the **local** `caddy:2` container on port 3000, for the
-  dev server running on this machine. Nothing to do with staging.
-- `clips-dev-web` / `clips-dev-realtime` — the **staging** stack behind
+- `clips-dev-web` / `clips-dev-realtime` — **staging**, behind
   `dev.clips.oneroomgaming.com`.
 - `clips-web` / `clips-realtime` — **production**.
+
+There was briefly a third, `clips-dev-preview`, one character away from the
+staging stack. Removing it was part of why the local proxy went.
 
 ### Gotchas
 
