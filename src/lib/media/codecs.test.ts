@@ -14,8 +14,10 @@ describe("isBrowserPlayable", () => {
     expect(isBrowserPlayable("hevc", "aac")).toBe(false);
   });
 
-  it("rejects av1", () => {
-    expect(isBrowserPlayable("av1", "aac")).toBe(false);
+  it("accepts av1 with no pixel format known", () => {
+    // This asserted rejection until real AV1 clips arrived and were stranded
+    // in needs_transcode. See the av1 block below.
+    expect(isBrowserPlayable("av1", "aac")).toBe(true);
   });
 
   it("rejects an unsupported audio codec alongside supported video", () => {
@@ -57,5 +59,35 @@ describe("isBrowserPlayable — pixel format", () => {
 
   it("still rejects an unplayable codec whatever the pixel format", () => {
     expect(isBrowserPlayable("hevc", "aac", "yuv420p")).toBe(false);
+  });
+});
+
+describe("isBrowserPlayable — av1", () => {
+  it("accepts av1, which browsers have decoded for years", () => {
+    // Chrome 70+, Firefox 67+, Safari 17+. Six real clips were rejected as
+    // needs_transcode — a dead end, since transcode is a stub — because the
+    // allowlist only named h264.
+    expect(isBrowserPlayable("av1", "aac", "yuv420p")).toBe(true);
+    expect(isBrowserPlayable("av01", "aac", "yuv420p")).toBe(true);
+  });
+
+  it("accepts 10-bit av1", () => {
+    // AV1 Main profile covers 8- and 10-bit 4:2:0 and browsers decode both, so
+    // the H.264 pixel-format rule must not be applied to it.
+    expect(isBrowserPlayable("av1", "aac", "yuv420p10le")).toBe(true);
+  });
+
+  it("still rejects 10-bit h264, where the rule does apply", () => {
+    expect(isBrowserPlayable("h264", "aac", "yuv420p10le")).toBe(false);
+  });
+
+  it("still rejects 4:4:4 whatever the codec", () => {
+    expect(isBrowserPlayable("h264", "aac", "yuv444p")).toBe(false);
+    expect(isBrowserPlayable("av1", "aac", "yuv444p")).toBe(false);
+  });
+
+  it("still rejects codecs browsers do not decode in mp4", () => {
+    expect(isBrowserPlayable("hevc", "aac", "yuv420p")).toBe(false);
+    expect(isBrowserPlayable("vp8", "aac", "yuv420p")).toBe(false);
   });
 });
