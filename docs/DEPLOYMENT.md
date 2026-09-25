@@ -102,7 +102,18 @@ cd ~/git/containers && ./do.sh start clips
 ```
 
 `~/git/containers/clips/.env` needs `EMIT_SECRET` (generate with
-`openssl rand -hex 32`) and `CLIPS_MEDIA_DIR`.
+`openssl rand -hex 32`), `CLIPS_MEDIA_DIR` and `CLIPS_ADMINS`.
+
+`CLIPS_ADMINS` is a comma-separated list of `authentik_username` values
+allowed to delete clips. It is read by `web` only; `realtime` never
+authorizes a deletion. **Unset means nobody is an admin** and the Select
+button does not render — deletion fails closed, so a forgotten variable
+disables the feature rather than opening it. Changing the list is a compose
+change plus a container recreate, deliberately: the admin set is
+configuration, not data, and nothing hand-edits production SQLite.
+
+Set it in **both** stacks' `.env`. Staging and production have separate
+files, and an admin on one is not an admin on the other.
 
 > **`CLIPS_MEDIA_DIR` must be identical in `clips/.env` and `caddy/.env`.** If
 > they diverge, Caddy serves an empty directory while the app writes elsewhere,
@@ -342,6 +353,63 @@ every realtime restart**. A deploy empties both. Comments, tags, games and
 participants are in SQLite and survive.
 
 
+### Clip deletion (0.1.1)
+
+Verified on 2026-09-25 against a scratch copy of the dev database and media
+tree, so no real dev clip was destroyed to test this.
+
+**Deletion is permanent and there is no recovery path.** No soft-delete
+column, no retention window, no reaper. Once the transaction commits and the
+files are unlinked, the clip is gone. The only thing between a misclick and
+that is the two-step confirmation in the selection bar.
+
+**Verified by driving a real socket while deleting:**
+
+- A `grid` subscriber received `clip.removed` carrying the deleted id.
+- The clip row, and its comments, went with it — 1 comment before, 0 after.
+- The published `.mp4` and its `.jpg` thumbnail were both gone from disk.
+- With the clip playing in the theater, the room published a fresh snapshot
+  with `clipId: null` and `paused: true`, and **kept the host** — nobody is
+  ejected from the room, they just land on an empty stage.
+
+**Verified by request:**
+
+- With `CLIPS_ADMINS=localdev`, `/` renders the Select button.
+- With `CLIPS_ADMINS` unset, `/` serves 200 and renders **no** Select button.
+- With realtime stopped, deletion still committed and unlinked the files,
+  `publish` logged one `realtime: publish failed (clip.removed)` warning, and
+  there were **zero** unhandled rejections.
+- `/`, `/theater`, `/upload` and `/changelog` all served 200 with realtime
+  down and the library empty.
+- `totalDiskBytes` fell from 52048 to 0 as the last clip went. The disk
+  figure needs no separate bookkeeping — it sums `clips.size_bytes`.
+
+**Verified by unit test rather than by hand:**
+
+- `deleteClipCascade` against a clip holding all six child row types. Worth
+  noting that the pre-existing `deleteClip` could never have done this: with
+  `PRAGMA foreign_keys = ON` and no `onDelete` on any FK, it raises FOREIGN
+  KEY constraint failed for any clip that has been through the pipeline. It
+  had one caller, a test, which deleted a childless clip.
+- Deleting a clip whose job is mid-flight is safe: every handler ignores the
+  row returned by `applyProbe`/`setClipStatus`/`setClipThumb`, so those
+  updates become no-ops against zero rows, `failJob` already guards on a
+  missing job, and `announceClipUpdated` returns early. Worst case is one
+  logged job error. This matters because deleting `failed` and
+  `needs_transcode` clips is the main use for the feature.
+
+**NOT verified — needs a browser, which this session did not have:**
+
+- Entering and leaving select mode, and the card tiles becoming buttons
+  rather than links while selecting.
+- The two-step confirmation, and that changing the selection cancels a
+  confirmation already on screen.
+- A second tab's card vanishing when the first tab deletes it, and the
+  selection count staying honest when a selected card disappears.
+- The selection bar's stacking against the theater dock (both are fixed to
+  the bottom; the bar is z-45, the dock z-40).
+
+
 ## Running the dev stack (no Caddy needed)
 
 Two processes. Next serves everything, including media.
@@ -355,6 +423,7 @@ DEV_AUTH_USERNAME=localdev EMIT_SECRET=devsecret REALTIME_PORT=3001 \
 NEXT_PUBLIC_REALTIME_WS_URL=ws://<this-host>:3001/ws \
 DEV_AUTH_USERNAME=localdev EMIT_SECRET=devsecret \
 REALTIME_URL=http://127.0.0.1:3001 \
+CLIPS_ADMINS=localdev \
   bun --bun next dev -H 0.0.0.0 -p 3002
 ```
 
