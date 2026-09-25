@@ -70,6 +70,9 @@ export type ServerMessage =
   | { t: "comment.added"; comment: CommentSummary }
   | { t: "clip.added"; clip: ClipSummary }
   | { t: "clip.updated"; clip: ClipSummary }
+  // Carries only the id: by the time this is published the row is gone, so
+  // there is no clip left to summarise.
+  | { t: "clip.removed"; clipId: string }
   | { t: "upload.progress"; uploadId: string; pct: number; user: string };
 
 export type ClientMessage =

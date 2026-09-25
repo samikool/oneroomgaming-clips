@@ -14,6 +14,18 @@ export function mergeClip(state: ClipMap, message: ServerMessage): ClipMap {
     return state[message.clip.id] ? state : { ...state, [message.clip.id]: message.clip };
   }
 
+  if (message.t === "clip.removed") {
+    // Same identity-on-no-op rule as the adds: a browser that never saw this
+    // clip must not re-render the whole grid because someone deleted it.
+    if (!state[message.clipId]) {
+      return state;
+    }
+
+    const next = { ...state };
+    delete next[message.clipId];
+    return next;
+  }
+
   if (message.t === "clip.updated") {
     // An update for a clip this browser has never seen belongs to the next
     // page load, not to a card conjured out of a partial event.

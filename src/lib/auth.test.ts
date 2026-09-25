@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import {
+  assertAdmin,
   devIdentityOverride,
+  isAdmin,
+  NotAuthorizedError,
   MissingAuthHeadersError,
   parseAuthentikHeaders,
   resolveIdentity,
@@ -128,5 +131,75 @@ describe("devIdentityOverride", () => {
 
   it("survives a url it cannot parse", () => {
     expect(devIdentityOverride(undefined, { NODE_ENV: "development" })).toBeNull();
+  });
+});
+
+describe("isAdmin", () => {
+  it("grants the single configured admin", () => {
+    expect(isAdmin("sam", { CLIPS_ADMINS: "sam" })).toBe(true);
+  });
+
+  it("refuses a user who is not configured", () => {
+    expect(isAdmin("dave", { CLIPS_ADMINS: "sam" })).toBe(false);
+  });
+
+  it("grants nobody when CLIPS_ADMINS is unset", () => {
+    expect(isAdmin("sam", {})).toBe(false);
+  });
+
+  it("grants nobody when CLIPS_ADMINS is empty or only separators", () => {
+    expect(isAdmin("sam", { CLIPS_ADMINS: "" })).toBe(false);
+    expect(isAdmin("sam", { CLIPS_ADMINS: "  " })).toBe(false);
+    expect(isAdmin("sam", { CLIPS_ADMINS: ",,," })).toBe(false);
+  });
+
+  it("reads a comma-separated list and ignores surrounding whitespace", () => {
+    const env = { CLIPS_ADMINS: " sam , dave " };
+
+    expect(isAdmin("sam", env)).toBe(true);
+    expect(isAdmin("dave", env)).toBe(true);
+    expect(isAdmin("kel", env)).toBe(false);
+  });
+
+  it("never matches the empty username against an empty list entry", () => {
+    expect(isAdmin("", { CLIPS_ADMINS: "sam,,dave" })).toBe(false);
+  });
+
+  // Exact match on purpose. A case-insensitive compare would grant admin to a
+  // different Authentik user whose name differs only in case.
+  it("matches case-sensitively", () => {
+    expect(isAdmin("Sam", { CLIPS_ADMINS: "sam" })).toBe(false);
+  });
+});
+
+describe("assertAdmin", () => {
+  const sam = { username: "sam", email: null, displayName: null };
+
+  it("returns the user when they are an admin", () => {
+    expect(assertAdmin(sam, { CLIPS_ADMINS: "sam" })).toEqual(sam);
+  });
+
+  it("throws NotAuthorizedError for a signed-in non-admin", () => {
+    expect(() => assertAdmin({ ...sam, username: "dave" }, { CLIPS_ADMINS: "sam" })).toThrow(
+      NotAuthorizedError,
+    );
+  });
+
+  // Fails closed: a deployment that forgot CLIPS_ADMINS disables deletion
+  // rather than opening it to everyone.
+  it("throws for everyone when CLIPS_ADMINS is unset", () => {
+    expect(() => assertAdmin(sam, {})).toThrow(NotAuthorizedError);
+  });
+
+  it("does not leak the admin list in the error message", () => {
+    let message = "";
+    try {
+      assertAdmin({ ...sam, username: "dave" }, { CLIPS_ADMINS: "sam,kel" });
+    } catch (error) {
+      message = error instanceof Error ? error.message : "";
+    }
+
+    expect(message).not.toContain("sam");
+    expect(message).not.toContain("kel");
   });
 });

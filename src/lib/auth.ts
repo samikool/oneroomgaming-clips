@@ -82,6 +82,65 @@ export function resolveIdentity(
 }
 
 /**
+ * Whether this username may perform destructive admin actions.
+ *
+ * Config, not data: `CLIPS_ADMINS` is a comma-separated list of
+ * `authentik_username` values read from the environment, so changing the admin
+ * set is a compose change rather than a hand-edit of production SQLite.
+ *
+ * Pure, and it lives here rather than in `session.ts` for the same reason
+ * `resolveIdentity` does — `src/realtime/` may import this module and may not
+ * import `next/*` or the database.
+ *
+ * Unset means **nobody** is an admin. Failing closed is the only safe
+ * direction: a missing variable disables deletion rather than opening it.
+ *
+ * The compare is exact. A case-insensitive match could grant admin to a
+ * different Authentik user whose name differs only in case.
+ */
+export function isAdmin(
+  username: string,
+  env: Partial<NodeJS.ProcessEnv> = process.env,
+): boolean {
+  if (username.length === 0) {
+    return false;
+  }
+
+  return (env.CLIPS_ADMINS ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0)
+    .includes(username);
+}
+
+export class NotAuthorizedError extends Error {
+  constructor() {
+    // Deliberately says nothing about who IS an admin. This message can reach
+    // a client, and the admin list is configuration, not something to leak.
+    super("This action requires an administrator.");
+    this.name = "NotAuthorizedError";
+  }
+}
+
+/**
+ * The guard for destructive admin actions: returns the user, or throws.
+ *
+ * Pure and separate from `requireAdmin` in `session.ts` so the decision can be
+ * tested without a Next request context — `requireUser` reads `next/headers`,
+ * which does not exist in a unit test.
+ */
+export function assertAdmin(
+  user: AuthenticatedUser,
+  env: Partial<NodeJS.ProcessEnv> = process.env,
+): AuthenticatedUser {
+  if (!isAdmin(user.username, env)) {
+    throw new NotAuthorizedError();
+  }
+
+  return user;
+}
+
+/**
  * A `?user=` override for local development, so one machine can be two
  * people.
  *

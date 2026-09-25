@@ -6,6 +6,7 @@ import { PresenceBar } from "@/components/presence-bar";
 import { getDb } from "@/db/client";
 import { listClipsForGrid, totalDiskBytes } from "@/db/clips";
 import { toSummary } from "@/lib/events/clips";
+import { isAdmin } from "@/lib/auth";
 import { parseFilters } from "@/lib/filters";
 import { requireUser } from "@/lib/session";
 
@@ -52,7 +53,11 @@ export default async function Home({
       ) : (
         // A filtered grid must not merge live clips that do not match, so the
         // live merge is only enabled on the unfiltered view.
-        <LiveGrid initial={clips.map(toSummary)} live={!filtered} />
+        <LiveGrid
+          initial={clips.map(toSummary)}
+          live={!filtered}
+          canSelect={isAdmin(user.authentikUsername)}
+        />
       )}
     </main>
   );

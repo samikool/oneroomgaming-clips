@@ -400,3 +400,84 @@ describe("chat and reactions over the socket", () => {
     ws.close();
   });
 });
+
+function emit(body: unknown): Promise<Response> {
+  return fetch(`http://localhost:${PORT}/emit`, {
+    method: "POST",
+    headers: { "X-Emit-Secret": "test-secret" },
+    body: JSON.stringify(body),
+  });
+}
+
+describe("clip.removed over /emit", () => {
+  it("fans the removal out to grid subscribers", async () => {
+    const ws = connect("grid-remove-watcher");
+    await waitFor(ws, (m) => m.t === "hello");
+    ws.send(JSON.stringify({ t: "sub", topics: ["grid"] }));
+    await waitFor(ws, (m) => m.t === "presence");
+
+    await emit({ t: "clip.removed", clipId: "01GONE" });
+
+    const message = await waitFor(ws, (m) => m.t === "clip.removed");
+    expect(message.clipId).toBe("01GONE");
+    ws.close();
+  });
+
+  it("clears the room when the deleted clip was the one playing", async () => {
+    const ws = await joinRoomTopic("eject-host");
+    ws.send(JSON.stringify({ t: "room.join" }));
+    await waitFor(ws, (m) => m.t === "room" && state(m).hostUserId === "eject-host");
+    ws.send(
+      JSON.stringify({
+        t: "room.control",
+        action: "setClip",
+        clipId: "01PLAYING",
+        title: "ace",
+        durationMs: 30_000,
+      }),
+    );
+    await waitFor(ws, (m) => m.t === "room" && state(m).clipId === "01PLAYING");
+
+    await emit({ t: "clip.removed", clipId: "01PLAYING" });
+
+    const snapshot = await waitFor(ws, (m) => m.t === "room" && state(m).clipId === null);
+    expect(state(snapshot).paused).toBe(true);
+    expect(state(snapshot).hostUserId).toBe("eject-host");
+    ws.close();
+  });
+
+  it("leaves the room alone when a different clip is deleted", async () => {
+    // Both topics: clip.removed routes to `grid`, so a room-only subscriber
+    // would never see the frame this test waits on.
+    const ws = connect("keep-watching");
+    await waitFor(ws, (m) => m.t === "hello");
+    ws.send(JSON.stringify({ t: "sub", topics: ["room", "grid"] }));
+    await waitFor(ws, (m) => m.t === "room");
+    ws.send(JSON.stringify({ t: "room.join" }));
+    ws.send(
+      JSON.stringify({
+        t: "room.control",
+        action: "setClip",
+        clipId: "01KEEP",
+        title: "keep",
+        durationMs: 10_000,
+      }),
+    );
+    await waitFor(ws, (m) => m.t === "room" && state(m).clipId === "01KEEP");
+
+    await emit({ t: "clip.removed", clipId: "01UNRELATED" });
+    await waitFor(ws, (m) => m.t === "clip.removed");
+
+    let cleared = false;
+    ws.addEventListener("message", (event) => {
+      const m = JSON.parse(String(event.data)) as Record<string, unknown>;
+      if (m.t === "room" && state(m).clipId === null) {
+        cleared = true;
+      }
+    });
+    await Bun.sleep(100);
+
+    expect(cleared).toBe(false);
+    ws.close();
+  });
+});

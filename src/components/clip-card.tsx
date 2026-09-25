@@ -31,7 +31,19 @@ function statusLabel(status: string): string | undefined {
   return STATUS_LABEL[status as ClipStatus];
 }
 
-export function ClipCard({ clip }: { clip: ClipCardData }) {
+export type ClipCardSelection = {
+  /** Whether the grid is in selection mode at all. */
+  selectable?: boolean;
+  selected?: boolean;
+  onToggle?: (id: string) => void;
+};
+
+export function ClipCard({
+  clip,
+  selectable = false,
+  selected = false,
+  onToggle,
+}: { clip: ClipCardData } & ClipCardSelection) {
   const label = statusLabel(clip.status);
 
   const tile = (
@@ -73,6 +85,33 @@ export function ClipCard({ clip }: { clip: ClipCardData }) {
       )}
     </p>
   );
+
+  // In selection mode the tile is a <button>, not a <Link> with the navigation
+  // cancelled. An anchor that sometimes navigates and sometimes does not is
+  // the version that breaks middle-click, keyboard and "open in new tab".
+  if (selectable) {
+    return (
+      <div>
+        <button
+          type="button"
+          aria-pressed={selected}
+          onClick={() => onToggle?.(clip.id)}
+          className="relative block w-full cursor-pointer text-left"
+        >
+          <span
+            aria-hidden="true"
+            className={`clip-check${selected ? " clip-check-on" : ""}`}
+          />
+          <span className={clip.status === "ready" ? undefined : "block opacity-60"}>
+            {tile}
+          </span>
+          <span className="sr-only">{selected ? "Selected" : "Not selected"}</span>
+        </button>
+        {/* The footer's filter links are dropped while selecting: following one
+            navigates away and silently discards the selection. */}
+      </div>
+    );
+  }
 
   if (clip.status !== "ready") {
     return (

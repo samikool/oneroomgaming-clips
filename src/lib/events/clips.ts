@@ -56,3 +56,17 @@ export function announceClipUpdated(
 ): Promise<void> {
   return announce(db, clipId, "clip.updated", env);
 }
+
+/**
+ * Announces a deletion.
+ *
+ * Unlike `announceClipAdded` and `announceClipUpdated` this does not re-read
+ * the row — by the time it is called the row is gone, which is the whole
+ * point. The id is all the event carries and all any client needs.
+ */
+export function announceClipRemoved(
+  clipId: string,
+  env?: Partial<NodeJS.ProcessEnv>,
+): Promise<boolean> {
+  return publish({ t: "clip.removed", clipId }, env);
+}

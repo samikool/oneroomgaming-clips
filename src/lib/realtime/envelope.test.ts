@@ -255,3 +255,15 @@ describe("isEphemeral — social messages", () => {
     expect(isEphemeral({ t: "comment.added", comment })).toBe(false);
   });
 });
+
+describe("clip.removed", () => {
+  it("routes to the grid topic", () => {
+    expect(topicsFor({ t: "clip.removed", clipId: "01AAA" })).toEqual(["grid"]);
+  });
+
+  // A client that misses this keeps showing a card for a video that is gone
+  // and never recovers on its own — the same reason clip lifecycle is kept.
+  it("is never droppable under backpressure", () => {
+    expect(isEphemeral({ t: "clip.removed", clipId: "01AAA" })).toBe(false);
+  });
+});

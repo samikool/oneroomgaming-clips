@@ -5,10 +5,13 @@ import {
   clipParticipants,
   clips,
   clipTags,
+  comments,
   games,
+  jobs,
   mediaFiles,
   tags,
   users,
+  views,
   type Clip,
   type ClipStatus,
 } from "./schema";
@@ -138,6 +141,36 @@ export function getClip(db: Db, id: string): Clip | undefined {
 
 export function deleteClip(db: Db, id: string): void {
   db.delete(clips).where(eq(clips.id, id)).run();
+}
+
+/**
+ * Removes a clip and everything that references it, in one transaction.
+ *
+ * `deleteClip` above cannot do this. `PRAGMA foreign_keys` is ON and not one
+ * child FK declares `onDelete`, so a bare delete raises FOREIGN KEY constraint
+ * failed for any clip that has ever been through the pipeline — every real
+ * clip has `jobs` and `media_files` rows.
+ *
+ * Children before the parent, and all of it inside a transaction: a partial
+ * cascade would leave rows pointing at a clip that no longer exists.
+ *
+ * `tags` and `games` rows are deliberately NOT removed. They are shared
+ * vocabulary — deleting the last clip tagged "ace" should not delete the tag
+ * other clips may get later. Only the join rows go.
+ *
+ * Files on disk are not touched here. The caller unlinks them AFTER this
+ * commits, so a rolled-back transaction never leaves the video gone.
+ */
+export function deleteClipCascade(db: Db, id: string): void {
+  db.transaction((tx) => {
+    tx.delete(comments).where(eq(comments.clipId, id)).run();
+    tx.delete(clipTags).where(eq(clipTags.clipId, id)).run();
+    tx.delete(clipParticipants).where(eq(clipParticipants.clipId, id)).run();
+    tx.delete(views).where(eq(views.clipId, id)).run();
+    tx.delete(jobs).where(eq(jobs.clipId, id)).run();
+    tx.delete(mediaFiles).where(eq(mediaFiles.clipId, id)).run();
+    tx.delete(clips).where(eq(clips.id, id)).run();
+  });
 }
 
 /**

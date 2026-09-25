@@ -82,7 +82,16 @@ async function handleEmit(request: IncomingMessage, response: ServerResponse) {
       return;
     }
 
-    const delivered = hub.publish(parsed as ServerMessage);
+    const message = parsed as ServerMessage;
+
+    // The one emitted event this process acts on rather than only relaying.
+    // A clip deleted while the room is watching it would otherwise leave every
+    // follower chasing a video that now 404s, with no way back but a reload.
+    if (message.t === "clip.removed" && room.clearIfClip(message.clipId)) {
+      publishRoom();
+    }
+
+    const delivered = hub.publish(message);
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify({ delivered }));
   } catch (error) {

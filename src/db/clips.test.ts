@@ -1,13 +1,20 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createDb, type Db } from "@/db/client";
-import { mediaFiles } from "@/db/schema";
+import {
+  clipParticipants, clipTags, comments, jobs, mediaFiles, views,
+} from "@/db/schema";
 import { eq } from "drizzle-orm";
+import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import { clips } from "@/db/schema";
 import {
-  applyProbe, createClip, deleteClip, getClip, listAllClips, listClips, listReadyClips,
-  recordMediaFile, setClipStatus, setClipThumb, totalDiskBytes,
+  applyProbe, createClip, deleteClip, deleteClipCascade, getClip, listAllClips, listClips,
+  listReadyClips, recordMediaFile, setClipStatus, setClipThumb, totalDiskBytes,
 } from "@/db/clips";
-import { setClipGame, setClipParticipants, setClipTags } from "@/db/metadata";
+import { addComment, listComments } from "@/db/comments";
+import { enqueueStage } from "@/db/jobs";
+import {
+  listGames, listTags, setClipGame, setClipParticipants, setClipTags,
+} from "@/db/metadata";
 import { upsertUser } from "@/db/users";
 import type { MediaInfo } from "@/lib/media/probe";
 
@@ -209,5 +216,99 @@ describe("totalDiskBytes", () => {
     db.update(clips).set({ sizeBytes: null }).where(eq(clips.id, "01B")).run();
 
     expect(totalDiskBytes(db)).toBe(1_000);
+  });
+});
+
+describe("deleteClipCascade", () => {
+  // Every child table that references clips.id. PRAGMA foreign_keys is ON and
+  // no FK declares onDelete, so a bare row delete throws on any of these.
+  function seedWithEveryChild() {
+    const user = upsertUser(db, { username: "sam", email: null, displayName: null });
+    const clip = seed("01CASCADE", user.id);
+
+    addComment(db, { clipId: clip.id, userId: user.id, body: "hi" });
+    setClipTags(db, clip.id, ["ace"]);
+    setClipGame(db, clip.id, "valorant");
+    setClipParticipants(db, clip.id, ["sam"]);
+    enqueueStage(db, clip.id, "probe");
+    recordMediaFile(db, clip.id, {
+      kind: "source", path: "clips/01CASCADE.mp4", info, isDefault: true,
+    });
+    db.insert(views)
+      .values({ id: "v1", clipId: clip.id, userId: user.id, startedAt: new Date() })
+      .run();
+
+    return clip;
+  }
+
+  it("removes a clip that has every kind of child row", () => {
+    const clip = seedWithEveryChild();
+
+    deleteClipCascade(db, clip.id);
+
+    expect(getClip(db, clip.id)).toBeUndefined();
+  });
+
+  it("removes the child rows rather than orphaning them", () => {
+    const clip = seedWithEveryChild();
+
+    deleteClipCascade(db, clip.id);
+
+    const remaining = (table: SQLiteTable, column: SQLiteColumn) =>
+      db.select().from(table).where(eq(column, clip.id)).all().length;
+
+    expect(remaining(comments, comments.clipId)).toBe(0);
+    expect(remaining(clipTags, clipTags.clipId)).toBe(0);
+    expect(remaining(clipParticipants, clipParticipants.clipId)).toBe(0);
+    expect(remaining(views, views.clipId)).toBe(0);
+    expect(remaining(jobs, jobs.clipId)).toBe(0);
+    expect(remaining(mediaFiles, mediaFiles.clipId)).toBe(0);
+  });
+
+  it("leaves other clips and their children untouched", () => {
+    const survivor = seed("01SURVIVOR");
+    const user = upsertUser(db, { username: "sam", email: null, displayName: null });
+    addComment(db, { clipId: survivor.id, userId: user.id, body: "keep me" });
+    const doomed = seedWithEveryChild();
+
+    deleteClipCascade(db, doomed.id);
+
+    expect(getClip(db, survivor.id)).toBeDefined();
+    expect(listComments(db, survivor.id)).toHaveLength(1);
+  });
+
+  // The tag and game rows are shared vocabulary, not owned by one clip.
+  it("keeps the tag and game rows themselves, only the links", () => {
+    const clip = seedWithEveryChild();
+
+    deleteClipCascade(db, clip.id);
+
+    expect(listTags(db)).toContain("ace");
+    expect(listGames(db).map((g) => g.name)).toContain("valorant");
+  });
+
+  it("does not remove the uploader", () => {
+    const clip = seedWithEveryChild();
+
+    deleteClipCascade(db, clip.id);
+
+    expect(upsertUser(db, { username: "sam", email: null, displayName: null })).toBeDefined();
+  });
+
+  it("drops the clip's bytes out of the disk total", () => {
+    seed("01KEEP");
+    const clip = seedWithEveryChild();
+    const before = totalDiskBytes(db);
+
+    deleteClipCascade(db, clip.id);
+
+    expect(totalDiskBytes(db)).toBe(before - 100);
+  });
+
+  it("is a no-op for a clip that does not exist", () => {
+    seed("01KEEP");
+
+    expect(() => deleteClipCascade(db, "nope")).not.toThrow();
+    expect(listAllClips(db)).toHaveLength(1);
   });
 });

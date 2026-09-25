@@ -341,3 +341,69 @@ describe("Room — requesting control", () => {
     expect(room.requestControl("kai")).toBe("sam");
   });
 });
+
+describe("Room — a clip deleted out from under the room", () => {
+  function playingAce() {
+    const h = roomAt();
+    h.room.join("sam");
+    h.room.claimHost("sam");
+    h.room.control("sam", setAce);
+    return h;
+  }
+
+  it("clears the room when the clip being watched is deleted", () => {
+    const { room } = playingAce();
+
+    expect(room.clearIfClip("01A")).toBe(true);
+    expect(room.state.clipId).toBeNull();
+    expect(room.state.clipTitle).toBeNull();
+    expect(room.state.clipDurationMs).toBeNull();
+  });
+
+  it("parks the playhead at zero and pauses, so nobody chases a missing video", () => {
+    const { room, advance } = playingAce();
+    advance(5_000);
+
+    room.clearIfClip("01A");
+
+    expect(room.state.positionMs).toBe(0);
+    expect(room.state.paused).toBe(true);
+  });
+
+  // Followers act on rev; without a bump they would ignore the reset.
+  it("bumps rev so followers apply the reset", () => {
+    const { room } = playingAce();
+    const before = room.state.rev;
+
+    room.clearIfClip("01A");
+
+    expect(room.state.rev).toBe(before + 1);
+  });
+
+  it("ignores a different clip being deleted", () => {
+    const { room } = playingAce();
+    const before = room.state.rev;
+
+    expect(room.clearIfClip("01OTHER")).toBe(false);
+    expect(room.state.clipId).toBe("01A");
+    expect(room.state.rev).toBe(before);
+  });
+
+  it("ignores a deletion when the room is not playing anything", () => {
+    const { room } = roomAt();
+
+    expect(room.clearIfClip("01A")).toBe(false);
+    expect(room.state.rev).toBe(0);
+  });
+
+  // Deleting a clip is not a reason to throw everyone out or unseat the host.
+  it("keeps members and the host in place", () => {
+    const { room } = playingAce();
+    room.join("dave");
+
+    room.clearIfClip("01A");
+
+    expect(room.state.hostUserId).toBe("sam");
+    expect(room.members.sort()).toEqual(["dave", "sam"]);
+  });
+});

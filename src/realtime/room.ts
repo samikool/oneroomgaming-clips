@@ -140,6 +140,32 @@ export class Room {
   }
 
   /**
+   * Clears what is playing if it is the clip that was just deleted, and
+   * reports whether anything changed so the caller knows to republish.
+   *
+   * Takes only an id because that is all `clip.removed` carries, and this
+   * process has no database to resolve one against.
+   *
+   * Members and the host are left alone: a clip being deleted is not a reason
+   * to throw everyone out of the room or unseat whoever is running it. They
+   * land on an empty theater and can pick something else.
+   */
+  clearIfClip(clipId: string): boolean {
+    if (this.#state.clipId !== clipId) {
+      return false;
+    }
+
+    return this.#commit({
+      clipId: null,
+      clipTitle: null,
+      clipDurationMs: null,
+      positionMs: 0,
+      anchorServerTime: this.#now(),
+      paused: true,
+    });
+  }
+
+  /**
    * Returns the host to notify, or null when there is nobody to ask, the asker
    * is the host or not present, or they are inside the cooldown.
    */

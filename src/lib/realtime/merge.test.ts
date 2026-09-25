@@ -51,3 +51,25 @@ describe("mergeClip", () => {
     expect(mergeClip(state, { t: "clip.added", clip: a })).toBe(state);
   });
 });
+
+describe("mergeClip — removal", () => {
+  it("drops a removed clip from the grid", () => {
+    const state: ClipMap = { a, b };
+
+    expect(mergeClip(state, { t: "clip.removed", clipId: "a" })).toEqual({ b });
+  });
+
+  it("returns the same object when the removed clip was never shown", () => {
+    const state: ClipMap = { b };
+
+    expect(mergeClip(state, { t: "clip.removed", clipId: "a" })).toBe(state);
+  });
+
+  it("does not mutate the state it was given", () => {
+    const state: ClipMap = { a, b };
+
+    mergeClip(state, { t: "clip.removed", clipId: "a" });
+
+    expect(Object.keys(state).sort()).toEqual(["a", "b"]);
+  });
+});
