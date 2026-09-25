@@ -278,5 +278,9 @@ if (!EMIT_SECRET) {
 }
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`realtime listening on :${PORT}`);
+  // Reads the bound port rather than the requested one: PORT may be 0, which
+  // asks the OS to pick, and logging "0" tells an operator nothing.
+  const bound = server.address();
+  const shown = bound !== null && typeof bound !== "string" ? bound.port : PORT;
+  console.log(`realtime listening on :${shown}`);
 });

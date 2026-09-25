@@ -1,14 +1,31 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import type { Server } from "node:http";
+import type { AddressInfo, Server } from "node:net";
+import type { Server as HttpServer } from "node:http";
 
-const PORT = 3099;
-let server: Server;
+/**
+ * Assigned by the OS, not hardcoded.
+ *
+ * This used to be a fixed 3099, which meant two runs of this file at the same
+ * time — two agents, or a watch mode overlapping a manual run — fought over
+ * the same port. `REALTIME_PORT=0` lets the kernel pick a free one and we read
+ * back what it chose.
+ */
+let PORT: number;
+let server: HttpServer;
 
 beforeAll(async () => {
   process.env.EMIT_SECRET = "test-secret";
-  process.env.REALTIME_PORT = String(PORT);
+  process.env.REALTIME_PORT = "0";
   server = (await import("./index")).server;
-  await Bun.sleep(150);
+
+  // Wait for the bind rather than sleeping a guessed interval: the address is
+  // null until the listening event fires, and on a loaded machine 150ms was
+  // not always enough.
+  if (!server.listening) {
+    await new Promise<void>((resolve) => server.once("listening", () => resolve()));
+  }
+
+  PORT = (server.address() as AddressInfo).port;
 });
 
 afterAll(async () => {
@@ -401,6 +418,16 @@ describe("chat and reactions over the socket", () => {
   });
 });
 
+/**
+ * POSTs to /emit.
+ *
+ * **Call `waitFor` BEFORE awaiting this, then await the waiter.** `/emit`
+ * publishes synchronously inside the request, so a frame can reach the socket
+ * while this fetch is still in flight — and `waitFor` only attaches its
+ * listener when called. Awaiting the emit first loses the frame roughly one
+ * run in ten, which is exactly how this suite went red in CI on an otherwise
+ * green commit.
+ */
 function emit(body: unknown): Promise<Response> {
   return fetch(`http://localhost:${PORT}/emit`, {
     method: "POST",
@@ -416,9 +443,10 @@ describe("clip.removed over /emit", () => {
     ws.send(JSON.stringify({ t: "sub", topics: ["grid"] }));
     await waitFor(ws, (m) => m.t === "presence");
 
+    const seen = waitFor(ws, (m) => m.t === "clip.removed");
     await emit({ t: "clip.removed", clipId: "01GONE" });
 
-    const message = await waitFor(ws, (m) => m.t === "clip.removed");
+    const message = await seen;
     expect(message.clipId).toBe("01GONE");
     ws.close();
   });
@@ -438,9 +466,10 @@ describe("clip.removed over /emit", () => {
     );
     await waitFor(ws, (m) => m.t === "room" && state(m).clipId === "01PLAYING");
 
+    const cleared = waitFor(ws, (m) => m.t === "room" && state(m).clipId === null);
     await emit({ t: "clip.removed", clipId: "01PLAYING" });
 
-    const snapshot = await waitFor(ws, (m) => m.t === "room" && state(m).clipId === null);
+    const snapshot = await cleared;
     expect(state(snapshot).paused).toBe(true);
     expect(state(snapshot).hostUserId).toBe("eject-host");
     ws.close();
@@ -465,8 +494,9 @@ describe("clip.removed over /emit", () => {
     );
     await waitFor(ws, (m) => m.t === "room" && state(m).clipId === "01KEEP");
 
+    const seen = waitFor(ws, (m) => m.t === "clip.removed");
     await emit({ t: "clip.removed", clipId: "01UNRELATED" });
-    await waitFor(ws, (m) => m.t === "clip.removed");
+    await seen;
 
     let cleared = false;
     ws.addEventListener("message", (event) => {
