@@ -277,12 +277,10 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
                   onRequestControl={() => send({ t: "room.requestControl" })}
                 >
                   <VolumeControl volume={volume} onChange={setVolume} />
-                </TheaterTransport>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <ReactionBar onReact={react} />
+                  {/* At the far right of the bar, where every video player puts it. */}
                   <button
                     type="button"
-                    className="button-secondary transport-icon ml-auto"
+                    className="button-secondary transport-icon"
                     aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
                     title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
                     onClick={() => void toggleFullscreen()}
@@ -296,6 +294,9 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
                       )}
                     </svg>
                   </button>
+                </TheaterTransport>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <ReactionBar onReact={react} />
                 </div>
                 {needsGesture && (
                   <button type="button" className="button-primary mt-4" onClick={tapToSync}>
