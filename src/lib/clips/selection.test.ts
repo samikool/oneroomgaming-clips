@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { pruneSelection, toggleSelection } from "@/lib/clips/selection";
+import { isAllSelected, pruneSelection, selectAll, toggleSelection } from "@/lib/clips/selection";
 
 describe("toggleSelection", () => {
   it("selects an unselected clip", () => {
@@ -54,5 +54,43 @@ describe("pruneSelection", () => {
     pruneSelection(selected, ["a"]);
 
     expect([...selected].sort()).toEqual(["a", "b"]);
+  });
+});
+
+describe("selectAll", () => {
+  it("selects every id in the grid", () => {
+    expect([...selectAll(["a", "b", "c"])].sort()).toEqual(["a", "b", "c"]);
+  });
+
+  it("selects nothing for an empty grid", () => {
+    expect([...selectAll([])]).toEqual([]);
+  });
+
+  it("does not mutate the list it was given", () => {
+    const ids = ["a", "b"];
+
+    selectAll(ids).delete("a");
+
+    expect(ids).toEqual(["a", "b"]);
+  });
+});
+
+describe("isAllSelected", () => {
+  it("is true when every clip in the grid is selected", () => {
+    expect(isAllSelected(new Set(["a", "b"]), ["a", "b"])).toBe(true);
+  });
+
+  it("is false when any clip in the grid is unselected", () => {
+    expect(isAllSelected(new Set(["a"]), ["a", "b"])).toBe(false);
+  });
+
+  // A stale id (pruned on the next render) must not make a partial selection
+  // read as complete.
+  it("ignores selected ids that are not in the grid", () => {
+    expect(isAllSelected(new Set(["a", "gone"]), ["a", "b"])).toBe(false);
+  });
+
+  it("is false for an empty grid", () => {
+    expect(isAllSelected(new Set(), [])).toBe(false);
   });
 });
