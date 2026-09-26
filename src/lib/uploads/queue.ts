@@ -32,6 +32,6 @@ export function advanceQueue(rows: readonly QueueRow[], run: QueueRun | null, ch
   // Pausing the running upload is how the user stops the whole queue.
   if (phase === "paused") return null;
   // Moving on at "processing" (tus finished) rather than "ready": the server
-  // transcodes in the background and the next upload need not wait for it.
+  // processes the clip in the background and the next upload need not wait.
   return pick(rows, phase === "error" ? [...run.errored, run.current] : run.errored);
 }
