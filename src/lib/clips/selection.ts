@@ -33,3 +33,16 @@ export function pruneSelection(selected: Set<string>, present: string[]): Set<st
 
   return next.size === selected.size ? selected : next;
 }
+
+/** Selects every id in the grid, as a new set. */
+export function selectAll(ids: string[]): Set<string> {
+  return new Set(ids);
+}
+
+/**
+ * Whether every clip in the grid is selected — false for an empty grid, where
+ * there is nothing to select or deselect.
+ */
+export function isAllSelected(selected: Set<string>, ids: string[]): boolean {
+  return ids.length > 0 && ids.every((id) => selected.has(id));
+}

@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { deleteClips } from "@/app/actions";
-import { pruneSelection, toggleSelection } from "@/lib/clips/selection";
+import {
+  isAllSelected,
+  pruneSelection,
+  selectAll,
+  toggleSelection,
+} from "@/lib/clips/selection";
 import type { ClipSummary } from "@/lib/realtime/envelope";
 import { mergeClip, type ClipMap } from "@/lib/realtime/merge";
 import { useRealtime } from "@/lib/realtime/use-realtime";
@@ -54,6 +59,8 @@ export function LiveGrid({
     setSelected((current) => pruneSelection(current, presentIds));
   }, [presentIds]);
 
+  const allSelected = isAllSelected(selected, presentIds);
+
   function leaveSelectMode() {
     setSelecting(false);
     setSelected(new Set());
@@ -74,7 +81,21 @@ export function LiveGrid({
   return (
     <>
       {canSelect && (
-        <div className="mb-4 flex justify-end">
+        <div className="mb-4 flex justify-end gap-2">
+          {selecting && presentIds.length > 0 && (
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => {
+                setSelected(allSelected ? new Set() : selectAll(presentIds));
+                // Same reason as onToggle: a confirmation on screen would show
+                // a stale count.
+                setConfirming(false);
+              }}
+            >
+              {allSelected ? "Deselect all" : "Select all"}
+            </button>
+          )}
           <button
             type="button"
             className="button-secondary"
