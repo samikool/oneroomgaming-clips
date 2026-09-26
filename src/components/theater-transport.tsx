@@ -26,6 +26,7 @@ export function TheaterTransport({
   onPause,
   onSeek,
   onRequestControl,
+  children,
 }: {
   state: RoomState;
   clock: { now(localNow: number): number };
@@ -34,6 +35,8 @@ export function TheaterTransport({
   onPause(): void;
   onSeek(positionMs: number): void;
   onRequestControl(): void;
+  /** Viewer-local controls (volume) — never disabled for followers. */
+  children?: React.ReactNode;
 }) {
   const [, tick] = useState(0);
 
@@ -100,6 +103,7 @@ export function TheaterTransport({
           {state.hostUserId === null ? "Nobody has control" : `following ${state.hostUserId}`}
         </span>
       )}
+      {children}
     </div>
   );
 }
