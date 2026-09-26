@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ClipSummary, QueueEntry, RoomQueueCommand } from "@/lib/realtime/envelope";
-import { dropTarget } from "@/lib/theater/queue-drag";
+import { dropTarget, gapAtPointer } from "@/lib/theater/queue-drag";
 
 type QueueOp = Exclude<RoomQueueCommand, { op: "add" }>;
 
@@ -22,10 +22,12 @@ export function TheaterQueue({
   iAmHost: boolean;
   onQueue(command: QueueOp): void;
 }) {
-  // The host reorders by dragging on desktop. Native drag and drop does not
-  // fire on touch screens, so the arrows stay as the phone path.
+  // The host reorders by dragging the grip. Pointer events rather than native
+  // drag and drop, which never fires on touch screens, so one path serves
+  // mouse, touch and pen. The arrows stay for keyboards and screen readers.
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropBefore, setDropBefore] = useState<number | null>(null);
+  const listRef = useRef<HTMLOListElement>(null);
 
   const target = dragFrom !== null && dropBefore !== null ? dropTarget(dragFrom, dropBefore) : null;
 
@@ -33,6 +35,29 @@ export function TheaterQueue({
     setDragFrom(null);
     setDropBefore(null);
   }
+
+  function gapAt(clientY: number): number {
+    const rows = listRef.current ? Array.from(listRef.current.children) : [];
+    return gapAtPointer(clientY, rows.map((row) => row.getBoundingClientRect()));
+  }
+
+  // Escape drops the entry back where it was. The pointerup that follows
+  // finds no drag in progress and does nothing.
+  useEffect(() => {
+    if (dragFrom === null) {
+      return;
+    }
+
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        setDragFrom(null);
+        setDropBefore(null);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dragFrom]);
 
   return (
     <div className="flex flex-col gap-3 p-3">
@@ -62,7 +87,7 @@ export function TheaterQueue({
           Nothing queued. Pick clips from the grid below to line them up.
         </p>
       ) : (
-        <ol className="flex flex-col gap-2">
+        <ol ref={listRef} className="flex flex-col gap-2">
           {queue.map((entry, index) => {
             const thumb = clipsById.get(entry.clipId)?.thumbPath;
 
@@ -79,39 +104,49 @@ export function TheaterQueue({
                 ]
                   .filter(Boolean)
                   .join(" ")}
-                draggable={iAmHost}
-                onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = "move";
-                  // Firefox will not start a drag without some data set.
-                  event.dataTransfer.setData("text/plain", entry.entryId);
-                  setDragFrom(index);
-                }}
-                onDragOver={(event) => {
-                  if (dragFrom === null) {
-                    return;
-                  }
-
-                  event.preventDefault();
-                  const box = event.currentTarget.getBoundingClientRect();
-                  setDropBefore(event.clientY < box.top + box.height / 2 ? index : index + 1);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-
-                  if (dragFrom !== null && target !== null) {
-                    onQueue({
-                      t: "room.queue",
-                      op: "moveTo",
-                      entryId: queue[dragFrom].entryId,
-                      toIndex: target,
-                    });
-                  }
-
-                  endDrag();
-                }}
-                onDragEnd={endDrag}
               >
-                {iAmHost && <span className="queue-grip" aria-hidden="true" />}
+                {iAmHost && (
+                  <span
+                    className="queue-grip"
+                    aria-hidden="true"
+                    onPointerDown={(event) => {
+                      if (event.button !== 0) {
+                        return;
+                      }
+
+                      // Stops text selection and, with touch-action: none on
+                      // the grip, keeps the page from scrolling instead.
+                      event.preventDefault();
+                      // Moves keep arriving here even once the pointer has
+                      // left the grip, so the list can track it anywhere.
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      setDragFrom(index);
+                      setDropBefore(gapAt(event.clientY));
+                    }}
+                    onPointerMove={(event) => {
+                      if (dragFrom !== null) {
+                        setDropBefore(gapAt(event.clientY));
+                      }
+                    }}
+                    onPointerUp={(event) => {
+                      // Where the pointer is now, not the last rendered
+                      // target: a release can beat the render of the final move.
+                      const to = dragFrom === null ? null : dropTarget(dragFrom, gapAt(event.clientY));
+
+                      if (dragFrom !== null && to !== null) {
+                        onQueue({
+                          t: "room.queue",
+                          op: "moveTo",
+                          entryId: queue[dragFrom].entryId,
+                          toIndex: to,
+                        });
+                      }
+
+                      endDrag();
+                    }}
+                    onPointerCancel={endDrag}
+                  />
+                )}
                 <span className="queue-index font-pixel">{index + 1}</span>
                 <div className="queue-thumb">
                   {thumb && (

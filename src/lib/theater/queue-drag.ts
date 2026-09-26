@@ -11,3 +11,16 @@ export function dropTarget(from: number, before: number): number | null {
 
   return to === from ? null : to;
 }
+
+/**
+ * Which gap the pointer is over while dragging, given each row's box from
+ * `getBoundingClientRect`. Above a row's midpoint is the gap before it; past
+ * the last row's midpoint is the gap after the list. Taking the whole list at
+ * once means the pointer can wander off the rows (into the space between
+ * them, or above and below the list) and still land somewhere sensible.
+ */
+export function gapAtPointer(clientY: number, rows: { top: number; height: number }[]): number {
+  const index = rows.findIndex((row) => clientY < row.top + row.height / 2);
+
+  return index === -1 ? rows.length : index;
+}
