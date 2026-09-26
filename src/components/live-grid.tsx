@@ -145,7 +145,17 @@ export function LiveGrid({
             </>
           ) : (
             <>
-              <span className="text-sm">{selected.size} selected</span>
+              <button
+                type="button"
+                className="select-bar-clear"
+                aria-label="Clear selection"
+                onClick={() => setSelected(new Set())}
+              >
+                ✕
+              </button>
+              <span className="text-sm">
+                <span className="font-pixel text-accent">{selected.size}</span> selected
+              </span>
               <button
                 type="button"
                 className="button-secondary ml-auto"

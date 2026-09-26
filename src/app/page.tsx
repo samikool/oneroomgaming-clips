@@ -2,7 +2,6 @@ import Link from "next/link";
 import { DiskUsage } from "@/components/disk-usage";
 import { FilterChips } from "@/components/filter-chips";
 import { LiveGrid } from "@/components/live-grid";
-import { PresenceBar } from "@/components/presence-bar";
 import { getDb } from "@/db/client";
 import { listClipsForGrid, totalDiskBytes } from "@/db/clips";
 import { toSummary } from "@/lib/events/clips";
@@ -25,20 +24,16 @@ export default async function Home({
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
-      <header className="mb-8">
-        <div className="flex items-end justify-between gap-4">
-          <div className="min-w-0">
-            <p className="mb-1 text-sm text-ink-muted">One Room Gaming</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-ink">Clips</h1>
-          </div>
-          <Link href="/upload" className="button-primary shrink-0">
-            Upload clips
-          </Link>
+      <header className="mb-8 flex items-end justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-semibold tracking-tight text-ink">Clips</h1>
+          <p className="mt-1 text-sm text-ink-muted">
+            <DiskUsage bytes={totalDiskBytes(db)} />
+          </p>
         </div>
-        <p className="mt-2 text-sm text-ink-muted">
-          <DiskUsage bytes={totalDiskBytes(db)} /> · <PresenceBar me={user.authentikUsername} /> ·
-          signed in as {user.displayName ?? user.authentikUsername}
-        </p>
+        <Link href="/upload" className="button-primary shrink-0">
+          Upload clips
+        </Link>
       </header>
 
       <FilterChips filters={filters} />

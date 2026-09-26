@@ -272,7 +272,7 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
         </div>
 
         <aside className="w-full shrink-0 rounded-lg bg-surface-raised lg:w-80">
-          <div className="flex border-b border-[#303b48]">
+          <div className="flex border-b border-line">
             <button
               type="button"
               className={`theater-tab ${tab === "chat" ? "theater-tab-active" : ""}`}
