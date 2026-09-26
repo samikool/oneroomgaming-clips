@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Upload } from "tus-js-client";
+import { clipStatuses } from "@/app/actions";
 import { useRealtime } from "@/lib/realtime/use-realtime";
 import * as rules from "./batch";
 import type { Batch, BatchItem } from "./batch";
@@ -143,6 +144,26 @@ export function UploadsProvider({ me, children }: { me: string; children: React.
     if (item && (status === "ready" || status === "failed" || status === "needs_transcode")) {
       patch(item.key, { phase: status });
     }
+  });
+
+  // The safety net for a missed push: `hello` arrives on every (re)connect,
+  // so anything still processing asks once for where its clip actually is.
+  useRealtime(["user"], (message) => {
+    if (message.t !== "hello") {
+      return;
+    }
+
+    const ids = rules.processingClipIds(batchRef.current);
+
+    if (ids.length === 0) {
+      return;
+    }
+
+    void clipStatuses(ids)
+      .then((statuses) => commit(rules.settleProcessing(batchRef.current, statuses)))
+      .catch(() => {
+        // Offline again; the next reconnect asks again.
+      });
   });
 
   useEffect(() => {
