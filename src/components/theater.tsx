@@ -1,18 +1,24 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { clipPublicPath } from "@/lib/media/paths";
 import type { ClipSummary } from "@/lib/realtime/envelope";
+import { mergeClip, type ClipMap } from "@/lib/realtime/merge";
+import { useRealtime } from "@/lib/realtime/use-realtime";
 import { createSyncController, type SyncController } from "@/lib/theater/sync-controller";
 import { useRoom } from "@/lib/theater/use-room";
 import { TheaterTransport } from "./theater-transport";
 import { ReactionBar } from "./reaction-bar";
 import { ReactionStream } from "./reaction-stream";
+import { SidePanel } from "./side-panel";
 import { TheaterChat } from "./theater-chat";
+import { TheaterGrid } from "./theater-grid";
+import { TheaterQueue } from "./theater-queue";
 import { WatchingList } from "./watching-list";
+import { WatchingStrip } from "./watching-strip";
 
-type Tab = "chat" | "watching";
+/** Which side panel a phone shows; on desktop both are always there. */
+type Tab = "queue" | "chat";
 
 const RESYNC_TOAST_MS = 2_500;
 
@@ -20,7 +26,11 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
   const { view, chat, reactions, clock, send, dismiss } = useRoom();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controllerRef = useRef<SyncController | null>(null);
-  const [tab, setTab] = useState<Tab>("watching");
+  const [tab, setTab] = useState<Tab>("queue");
+  const [clipMap, setClipMap] = useState<ClipMap>(() =>
+    Object.fromEntries(clips.map((clip) => [clip.id, clip])),
+  );
+  const autoJoined = useRef(false);
   const [needsGesture, setNeedsGesture] = useState(false);
   const [resynced, setResynced] = useState(false);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -30,6 +40,33 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
   const { state } = view;
   const joined = view.inRoom.includes(me);
   const iAmHost = state.hostUserId === me;
+
+  // Opening the theater is joining it. Once per visit, on the first presence
+  // (the socket's first word after subscribing): a join sent before the socket
+  // opens is silently dropped, and joining again after Leave would make Leave
+  // impossible.
+  useRealtime(["room", "grid"], (message) => {
+    if (message.t === "presence" && !autoJoined.current) {
+      autoJoined.current = true;
+
+      if (!message.inRoom.includes(me)) {
+        send({ t: "room.join" });
+      }
+    }
+
+    setClipMap((current) => mergeClip(current, message));
+  });
+
+  // Only a finished clip can be played in sync, so the grid shows ready clips
+  // only — the same rule the page applies to its first render.
+  const ready = useMemo(
+    () =>
+      Object.values(clipMap)
+        .filter((clip) => clip.status === "ready")
+        .sort((a, b) => b.createdAt - a.createdAt),
+    [clipMap],
+  );
+  const clipsById = useMemo(() => new Map(ready.map((clip) => [clip.id, clip])), [ready]);
 
   useEffect(() => {
     const controller = createSyncController({
@@ -141,15 +178,13 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
     void videoRef.current?.play().catch(() => setNeedsGesture(true));
   }
 
+  const giveControl = (user: string) => send({ t: "room.giveControl", userId: user });
+  const claimHost = () => send({ t: "room.claimHost" });
+
   return (
-    <main className="mx-auto max-w-7xl p-8">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div>
-          <Link href="/" className="text-sm text-ink-muted hover:text-ink">
-            ← back
-          </Link>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Theater</h1>
-        </div>
+    <main className="mx-auto max-w-[1600px] px-5 py-6 sm:px-8">
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Theater</h1>
         {joined ? (
           <button
             type="button"
@@ -165,20 +200,52 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
         )}
       </div>
 
-      <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="theater-layout">
+        {/* Phones only: the video sits first (CSS order), then these tabs pick
+            which panel shows underneath. */}
+        <div className="theater-tabs">
+          <button
+            type="button"
+            className={`theater-tab ${tab === "queue" ? "theater-tab-active" : ""}`}
+            onClick={() => setTab("queue")}
+          >
+            Queue ({state.queue.length})
+          </button>
+          <button
+            type="button"
+            className={`theater-tab ${tab === "chat" ? "theater-tab-active" : ""}`}
+            onClick={() => setTab("chat")}
+          >
+            Chat
+          </button>
+        </div>
+
+        <SidePanel id="queue" title="Queue" side="left" hiddenOnMobile={tab !== "queue"}>
+          <TheaterQueue
+            queue={state.queue}
+            clipsById={clipsById}
+            iAmHost={iAmHost}
+            onQueue={send}
+          />
+        </SidePanel>
+
         <div
           ref={stageRef}
           className={`theater-stage min-w-0 flex-1 ${isFullscreen ? "theater-stage-full" : ""}`}
         >
           {state.clipId === null ? (
-            <div className="flex aspect-video items-center justify-center rounded-lg bg-black/40">
-              <p className="text-sm text-ink-muted">Nothing is playing.</p>
+            <div className="flex aspect-video items-center justify-center rounded bg-surface-sunken">
+              <p className="text-sm text-ink-muted">
+                {state.queue.length > 0 && iAmHost
+                  ? "Press Play next to start the queue."
+                  : "Nothing is playing."}
+              </p>
             </div>
           ) : (
             <>
               <video
                 ref={videoRef}
-                className="w-full rounded-lg bg-black"
+                className="w-full rounded bg-black"
                 src={clipPublicPath(state.clipId)}
                 preload="auto"
                 playsInline
@@ -197,14 +264,16 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
                 onSeek={(positionMs) => send({ t: "room.control", action: "seek", positionMs })}
                 onRequestControl={() => send({ t: "room.requestControl" })}
               />
-              <ReactionBar onReact={react} />
-              <button
-                type="button"
-                className="button-secondary mt-2"
-                onClick={() => void toggleFullscreen()}
-              >
-                {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-              </button>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <ReactionBar onReact={react} />
+                <button
+                  type="button"
+                  className="button-secondary ml-auto"
+                  onClick={() => void toggleFullscreen()}
+                >
+                  {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                </button>
+              </div>
               {needsGesture && (
                 <button type="button" className="button-primary mt-4" onClick={tapToSync}>
                   Tap to sync
@@ -218,41 +287,15 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
             </>
           )}
 
-          {iAmHost && (
-            <div className="mt-6">
-              <h2 className="mb-2 text-sm font-semibold text-ink">Play something</h2>
-              {clips.length === 0 ? (
-                <p className="text-sm text-ink-muted">
-                  Nothing is ready to play yet.{" "}
-                  <Link href="/upload" className="underline hover:text-ink">
-                    Upload a clip
-                  </Link>
-                  .
-                </p>
-              ) : (
-                <ul className="flex flex-wrap gap-2">
-                  {clips.map((clip) => (
-                    <li key={clip.id}>
-                      <button
-                        type="button"
-                        className="chip-button"
-                        onClick={() =>
-                          send({
-                            t: "room.control",
-                            action: "setClip",
-                            clipId: clip.id,
-                            title: clip.title,
-                            durationMs: clip.durationMs,
-                          })
-                        }
-                      >
-                        {clip.title}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+          {/* Fullscreen has its own overlay for this. */}
+          {!isFullscreen && (
+            <WatchingStrip
+              inRoom={view.inRoom}
+              hostUserId={state.hostUserId}
+              me={me}
+              onGiveControl={giveControl}
+              onClaimHost={claimHost}
+            />
           )}
 
           {isFullscreen && (
@@ -262,8 +305,8 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
                   inRoom={view.inRoom}
                   hostUserId={state.hostUserId}
                   me={me}
-                  onGiveControl={(user) => send({ t: "room.giveControl", userId: user })}
-                  onClaimHost={() => send({ t: "room.claimHost" })}
+                  onGiveControl={giveControl}
+                  onClaimHost={claimHost}
                 />
                 <TheaterChat messages={chat} me={me} onSend={sendChat} compact />
               </div>
@@ -271,36 +314,37 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
           )}
         </div>
 
-        <aside className="w-full shrink-0 rounded-lg bg-surface-raised lg:w-80">
-          <div className="flex border-b border-line">
-            <button
-              type="button"
-              className={`theater-tab ${tab === "chat" ? "theater-tab-active" : ""}`}
-              onClick={() => setTab("chat")}
-            >
-              Chat
-            </button>
-            <button
-              type="button"
-              className={`theater-tab ${tab === "watching" ? "theater-tab-active" : ""}`}
-              onClick={() => setTab("watching")}
-            >
-              Watching ({view.inRoom.length})
-            </button>
-          </div>
-          {tab === "chat" ? (
-            <TheaterChat messages={chat} me={me} onSend={sendChat} />
-          ) : (
-            <WatchingList
-              inRoom={view.inRoom}
-              hostUserId={state.hostUserId}
-              me={me}
-              onGiveControl={(user) => send({ t: "room.giveControl", userId: user })}
-              onClaimHost={() => send({ t: "room.claimHost" })}
-            />
-          )}
-        </aside>
+        <SidePanel id="chat" title="Chat" side="right" hiddenOnMobile={tab !== "chat"}>
+          <TheaterChat messages={chat} me={me} onSend={sendChat} />
+        </SidePanel>
       </div>
+
+      <section className="mt-10">
+        <h2 className="mb-4 text-xl text-ink">Clips</h2>
+        <TheaterGrid
+          clips={ready}
+          iAmHost={iAmHost}
+          queueLength={state.queue.length}
+          onQueue={(clip) =>
+            send({
+              t: "room.queue",
+              op: "add",
+              clipId: clip.id,
+              title: clip.title,
+              durationMs: clip.durationMs,
+            })
+          }
+          onPlayNow={(clip) =>
+            send({
+              t: "room.control",
+              action: "setClip",
+              clipId: clip.id,
+              title: clip.title,
+              durationMs: clip.durationMs,
+            })
+          }
+        />
+      </section>
 
       {iAmHost && view.requests.length > 0 && (
         <div className="theater-requests" role="status">
@@ -311,7 +355,7 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
                 type="button"
                 className="chip-button"
                 onClick={() => {
-                  send({ t: "room.giveControl", userId: request.user });
+                  giveControl(request.user);
                   dismiss(request.user);
                 }}
               >

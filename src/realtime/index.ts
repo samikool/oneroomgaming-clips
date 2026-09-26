@@ -150,6 +150,15 @@ function handleRoomMessage(username: string, message: ClientMessage): void {
 
       return;
 
+    case "room.queue":
+      // Refusals (a follower editing, the cap) are silent for the same reason
+      // as room.control.
+      if (room.queue(username, message)) {
+        publishRoom();
+      }
+
+      return;
+
     case "chat.send": {
       // A refused message is dropped in silence. The sender's composer has
       // already cleared; telling them they typed too fast is noise.

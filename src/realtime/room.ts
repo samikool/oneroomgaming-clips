@@ -1,4 +1,4 @@
-import type { ClientMessage, RoomState } from "@/lib/realtime/envelope";
+import type { ClientMessage, QueueEntry, RoomQueueCommand, RoomState } from "@/lib/realtime/envelope";
 import { INITIAL_ROOM_STATE, positionNow } from "@/lib/realtime/room-state";
 import { RateLimiter } from "./rate-limit";
 
@@ -11,6 +11,13 @@ export type RoomControl = Extract<ClientMessage, { t: "room.control" }>;
  * is this.
  */
 export const REQUEST_CONTROL_COOLDOWN_MS = 10_000;
+
+/**
+ * Plenty for an evening, and the only brake on adding: there is deliberately no
+ * per-person cooldown, because a friend queueing three clips in a second is the
+ * normal case, not abuse.
+ */
+export const QUEUE_LIMIT = 50;
 
 /**
  * The room. There is exactly one, it lives in memory, and it is the sole
@@ -29,6 +36,7 @@ export class Room {
   readonly #members = new Set<string>();
   readonly #requestLimiter: RateLimiter;
   readonly #now: () => number;
+  #nextEntry = 1;
 
   constructor(now: () => number = Date.now) {
     this.#now = now;
@@ -74,13 +82,17 @@ export class Room {
       return false;
     }
 
+    // An empty room forgets its queue, so the next session does not open on
+    // last night's leftovers.
+    const queue = this.#members.size === 0 ? { queue: [] } : {};
+
     if (this.#state.hostUserId !== user) {
-      return this.#commit({});
+      return this.#commit(queue);
     }
 
     // The room does not auto-promote: it goes hostless and pauses where it is,
     // and someone present claims it deliberately.
-    return this.#commit({ ...this.#frozen(), hostUserId: null, paused: true });
+    return this.#commit({ ...queue, ...this.#frozen(), hostUserId: null, paused: true });
   }
 
   claimHost(user: string): boolean {
@@ -112,14 +124,9 @@ export class Room {
 
     switch (command.action) {
       case "setClip":
-        return this.#commit({
-          clipId: command.clipId ?? null,
-          clipTitle: command.title ?? "",
-          clipDurationMs: command.durationMs ?? null,
-          positionMs: 0,
-          anchorServerTime: now,
-          paused: false,
-        });
+        return this.#commit(
+          this.#starting(command.clipId ?? null, command.title ?? "", command.durationMs ?? null),
+        );
 
       case "pause":
         return this.#state.paused ? false : this.#commit({ ...this.#frozen(), paused: true });
@@ -139,9 +146,100 @@ export class Room {
     }
   }
 
+  /** A clip starting from the top, playing, anchored to now. */
+  #starting(clipId: string | null, title: string, durationMs: number | null): Partial<RoomState> {
+    return {
+      clipId,
+      clipTitle: title,
+      clipDurationMs: durationMs,
+      positionMs: 0,
+      anchorServerTime: this.#now(),
+      paused: false,
+    };
+  }
+
+  #playEntry(entry: QueueEntry | undefined): boolean {
+    if (!entry) {
+      return false;
+    }
+
+    return this.#commit({
+      ...this.#starting(entry.clipId, entry.title, entry.durationMs),
+      queue: this.#state.queue.filter((e) => e.entryId !== entry.entryId),
+    });
+  }
+
+  queue(user: string, command: RoomQueueCommand): boolean {
+    const { queue } = this.#state;
+
+    if (command.op === "add") {
+      if (!this.#members.has(user) || queue.length >= QUEUE_LIMIT) {
+        return false;
+      }
+
+      const entry: QueueEntry = {
+        entryId: `q${this.#nextEntry++}`,
+        clipId: command.clipId,
+        title: command.title,
+        durationMs: command.durationMs,
+        addedBy: user,
+      };
+
+      return this.#commit({ queue: [...queue, entry] });
+    }
+
+    // Everything but adding belongs to whoever is running the room.
+    if (this.#state.hostUserId !== user) {
+      return false;
+    }
+
+    switch (command.op) {
+      case "clear":
+        return queue.length === 0 ? false : this.#commit({ queue: [] });
+
+      case "playNext":
+        return this.#playEntry(queue[0]);
+
+      case "play":
+        return this.#playEntry(queue.find((e) => e.entryId === command.entryId));
+
+      case "remove": {
+        const next = queue.filter((e) => e.entryId !== command.entryId);
+        return next.length === queue.length ? false : this.#commit({ queue: next });
+      }
+
+      case "move": {
+        const from = queue.findIndex((e) => e.entryId === command.entryId);
+        const to = from + command.delta;
+
+        if (from === -1 || to < 0 || to >= queue.length) {
+          return false;
+        }
+
+        const next = [...queue];
+        [next[from], next[to]] = [next[to], next[from]];
+        return this.#commit({ queue: next });
+      }
+
+      case "moveTo": {
+        const from = queue.findIndex((e) => e.entryId === command.entryId);
+        const to = command.toIndex;
+
+        if (from === -1 || to === from || to >= queue.length) {
+          return false;
+        }
+
+        const next = queue.filter((_, i) => i !== from);
+        next.splice(to, 0, queue[from]);
+        return this.#commit({ queue: next });
+      }
+    }
+  }
+
   /**
-   * Clears what is playing if it is the clip that was just deleted, and
-   * reports whether anything changed so the caller knows to republish.
+   * Clears what is playing if it is the clip that was just deleted, drops the
+   * clip from the queue, and reports whether anything changed so the caller
+   * knows to republish.
    *
    * Takes only an id because that is all `clip.removed` carries, and this
    * process has no database to resolve one against.
@@ -151,11 +249,15 @@ export class Room {
    * land on an empty theater and can pick something else.
    */
   clearIfClip(clipId: string): boolean {
+    const queue = this.#state.queue.filter((e) => e.clipId !== clipId);
+    const queueChanged = queue.length !== this.#state.queue.length;
+
     if (this.#state.clipId !== clipId) {
-      return false;
+      return queueChanged ? this.#commit({ queue }) : false;
     }
 
     return this.#commit({
+      queue,
       clipId: null,
       clipTitle: null,
       clipDurationMs: null,

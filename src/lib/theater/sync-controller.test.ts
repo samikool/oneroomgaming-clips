@@ -73,6 +73,7 @@ function playingState(overrides: Partial<RoomState> = {}): RoomState {
     paused: false,
     positionMs: 10_000,
     anchorServerTime: 1_000_000,
+    queue: [],
     rev: 1,
     ...overrides,
   };

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { REQUEST_CONTROL_COOLDOWN_MS, Room } from "@/realtime/room";
+import {
+  QUEUE_LIMIT,
+  REQUEST_CONTROL_COOLDOWN_MS,
+  Room,
+} from "@/realtime/room";
 
 function roomAt(start = 1_000) {
   let clock = start;
@@ -405,5 +409,198 @@ describe("Room — a clip deleted out from under the room", () => {
 
     expect(room.state.hostUserId).toBe("sam");
     expect(room.members.sort()).toEqual(["dave", "sam"]);
+  });
+});
+
+describe("Room — queue", () => {
+  const add = (clipId: string, title = clipId) =>
+    ({ t: "room.queue", op: "add", clipId, title, durationMs: 10_000 }) as const;
+
+  function busyRoom() {
+    const r = roomAt();
+    r.room.join("sam");
+    r.room.join("dave");
+    return r;
+  }
+
+  it("starts empty", () => {
+    expect(roomAt().room.state.queue).toEqual([]);
+  });
+
+  it("lets any member add, recording who added it", () => {
+    const { room } = busyRoom();
+    expect(room.queue("dave", add("01A", "ace"))).toBe(true);
+    expect(room.state.queue).toEqual([
+      expect.objectContaining({ clipId: "01A", title: "ace", durationMs: 10_000, addedBy: "dave" }),
+    ]);
+  });
+
+  it("refuses an add from someone not in the room", () => {
+    const { room } = busyRoom();
+    expect(room.queue("mike", add("01A"))).toBe(false);
+    expect(room.state.queue).toEqual([]);
+  });
+
+  it("allows duplicates, each with its own entry id", () => {
+    const { room, advance } = busyRoom();
+    room.queue("dave", add("01A"));
+    room.queue("dave", add("01A"));
+    const [a, b] = room.state.queue;
+    expect(a.clipId).toBe(b.clipId);
+    expect(a.entryId).not.toBe(b.entryId);
+  });
+
+  // Gamers click fast: a second add straight after the first must land.
+  it("lets one person add back to back", () => {
+    const { room } = busyRoom();
+    expect(room.queue("dave", add("01A"))).toBe(true);
+    expect(room.queue("dave", add("01B"))).toBe(true);
+    expect(room.state.queue.map((e) => e.clipId)).toEqual(["01A", "01B"]);
+  });
+
+  it(`stops at ${QUEUE_LIMIT} entries`, () => {
+    const { room, advance } = busyRoom();
+    for (let i = 0; i < QUEUE_LIMIT; i++) {
+      room.queue("sam", add(`c${i}`));
+      }
+    expect(room.queue("sam", add("one-too-many"))).toBe(false);
+    expect(room.state.queue).toHaveLength(QUEUE_LIMIT);
+  });
+
+  it("lets only the host remove, move and clear", () => {
+    const { room, advance } = busyRoom();
+    room.queue("dave", add("01A"));
+    room.queue("dave", add("01B"));
+    const [a] = room.state.queue;
+
+    expect(room.queue("dave", { t: "room.queue", op: "remove", entryId: a.entryId })).toBe(false);
+    expect(room.queue("dave", { t: "room.queue", op: "move", entryId: a.entryId, delta: 1 })).toBe(false);
+    expect(room.queue("dave", { t: "room.queue", op: "clear" })).toBe(false);
+    expect(room.state.queue).toHaveLength(2);
+  });
+
+  it("removes one entry by id, leaving its duplicate", () => {
+    const { room, advance } = busyRoom();
+    room.queue("sam", add("01A"));
+    room.queue("sam", add("01A"));
+    const [first, second] = room.state.queue;
+
+    expect(room.queue("sam", { t: "room.queue", op: "remove", entryId: first.entryId })).toBe(true);
+    expect(room.state.queue.map((e) => e.entryId)).toEqual([second.entryId]);
+  });
+
+  it("moves an entry one place, and refuses to move past either end", () => {
+    const { room, advance } = busyRoom();
+    for (const id of ["01A", "01B", "01C"]) {
+      room.queue("sam", add(id));
+      }
+    const [a, , c] = room.state.queue;
+
+    expect(room.queue("sam", { t: "room.queue", op: "move", entryId: a.entryId, delta: 1 })).toBe(true);
+    expect(room.state.queue.map((e) => e.clipId)).toEqual(["01B", "01A", "01C"]);
+    expect(room.queue("sam", { t: "room.queue", op: "move", entryId: c.entryId, delta: 1 })).toBe(false);
+    expect(room.queue("sam", { t: "room.queue", op: "move", entryId: "nope", delta: -1 })).toBe(false);
+  });
+
+  it("moves an entry straight to a new position, host only", () => {
+    const { room } = busyRoom();
+    for (const id of ["01A", "01B", "01C", "01D"]) {
+      room.queue("sam", add(id));
+    }
+    const d = room.state.queue[3];
+
+    expect(room.queue("dave", { t: "room.queue", op: "moveTo", entryId: d.entryId, toIndex: 0 })).toBe(false);
+    expect(room.queue("sam", { t: "room.queue", op: "moveTo", entryId: d.entryId, toIndex: 1 })).toBe(true);
+    expect(room.state.queue.map((e) => e.clipId)).toEqual(["01A", "01D", "01B", "01C"]);
+  });
+
+  it("refuses a move to where it already is, past the end, or of an unknown entry", () => {
+    const { room } = busyRoom();
+    room.queue("sam", add("01A"));
+    room.queue("sam", add("01B"));
+    const a = room.state.queue[0];
+    const rev = room.state.rev;
+
+    expect(room.queue("sam", { t: "room.queue", op: "moveTo", entryId: a.entryId, toIndex: 0 })).toBe(false);
+    expect(room.queue("sam", { t: "room.queue", op: "moveTo", entryId: a.entryId, toIndex: 2 })).toBe(false);
+    expect(room.queue("sam", { t: "room.queue", op: "moveTo", entryId: "nope", toIndex: 0 })).toBe(false);
+    expect(room.state.rev).toBe(rev);
+  });
+
+  it("clears the queue", () => {
+    const { room } = busyRoom();
+    room.queue("dave", add("01A"));
+    expect(room.queue("sam", { t: "room.queue", op: "clear" })).toBe(true);
+    expect(room.state.queue).toEqual([]);
+  });
+
+  it("plays the next entry from the start, playing, and takes it off the queue", () => {
+    const { room, advance, now } = busyRoom();
+    room.queue("dave", add("01A", "ace"));
+    room.queue("dave", add("01B", "bee"));
+
+    expect(room.queue("sam", { t: "room.queue", op: "playNext" })).toBe(true);
+    expect(room.state).toMatchObject({
+      clipId: "01A",
+      clipTitle: "ace",
+      clipDurationMs: 10_000,
+      positionMs: 0,
+      anchorServerTime: now(),
+      paused: false,
+    });
+    expect(room.state.queue.map((e) => e.clipId)).toEqual(["01B"]);
+  });
+
+  it("does not play next from an empty queue, or for a follower", () => {
+    const { room } = busyRoom();
+    expect(room.queue("sam", { t: "room.queue", op: "playNext" })).toBe(false);
+    room.queue("dave", add("01A"));
+    expect(room.queue("dave", { t: "room.queue", op: "playNext" })).toBe(false);
+    expect(room.state.clipId).toBeNull();
+  });
+
+  it("plays a chosen entry out of order", () => {
+    const { room, advance } = busyRoom();
+    room.queue("dave", add("01A"));
+    room.queue("dave", add("01B"));
+    const b = room.state.queue[1];
+
+    expect(room.queue("sam", { t: "room.queue", op: "play", entryId: b.entryId })).toBe(true);
+    expect(room.state.clipId).toBe("01B");
+    expect(room.state.queue.map((e) => e.clipId)).toEqual(["01A"]);
+  });
+
+  it("leaves the queue alone when the host plays a clip directly", () => {
+    const { room } = busyRoom();
+    room.queue("dave", add("01A"));
+    room.control("sam", setAce);
+    expect(room.state.queue).toHaveLength(1);
+  });
+
+  it("drops a deleted clip's entries, even when it is not playing", () => {
+    const { room, advance } = busyRoom();
+    room.queue("dave", add("01A"));
+    room.queue("dave", add("01B"));
+    room.queue("dave", add("01A"));
+
+    expect(room.clearIfClip("01A")).toBe(true);
+    expect(room.state.queue.map((e) => e.clipId)).toEqual(["01B"]);
+    expect(room.clearIfClip("zzz")).toBe(false);
+  });
+
+  it("keeps the queue when control changes hands", () => {
+    const { room } = busyRoom();
+    room.queue("dave", add("01A"));
+    room.giveControl("sam", "dave");
+    expect(room.state.queue).toHaveLength(1);
+  });
+
+  it("empties the queue when the last person leaves", () => {
+    const { room } = busyRoom();
+    room.queue("dave", add("01A"));
+    room.leave("sam");
+    expect(room.state.queue).toHaveLength(1);
+    room.leave("dave");
+    expect(room.state.queue).toEqual([]);
   });
 });

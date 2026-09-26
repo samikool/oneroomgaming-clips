@@ -274,3 +274,116 @@ button:hover .clip-tile img, button:focus-visible .clip-tile img { transform: sc
   a:hover > .clip-tile img, a:focus-visible > .clip-tile img,
   button:hover .clip-tile img, button:focus-visible .clip-tile img { transform: none; }
 }
+/* Theater: queue | video | chat on desktop, stacked with tabs below lg. */
+.theater-layout { display: flex; flex-direction: column; gap: 16px; }
+.theater-layout > .theater-stage { order: -1; }
+@media (min-width: 1024px) {
+  .theater-layout { flex-direction: row; align-items: flex-start; }
+  .theater-layout > .theater-stage { order: 0; }
+}
+/* Phone-only switches, written as plain CSS on purpose: these classes also set
+   `display`, and unlayered CSS beats Tailwind's layered `lg:hidden`. */
+.theater-tabs { display: flex; border-bottom: 1px solid var(--color-line); }
+@media (min-width: 1024px) { .theater-tabs { display: none; } }
+@media (max-width: 1023.98px) { .side-panel-tab-hidden { display: none; } }
+.side-panel {
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--color-surface-raised); border: 1px solid var(--color-line); border-radius: 4px;
+}
+@media (min-width: 1024px) {
+  .side-panel { width: 300px; flex-shrink: 0; max-height: calc(100vh - 160px); position: sticky; top: 16px; }
+  .side-panel-collapsed { width: 40px; }
+  .side-panel-collapsed .side-panel-body { display: none; }
+  .side-panel-collapsed .side-panel-head { flex-direction: column-reverse; padding: 8px 0; gap: 12px; border-bottom: 0; }
+  .side-panel-collapsed .side-panel-title { writing-mode: vertical-rl; }
+}
+.side-panel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--color-line);
+}
+.side-panel-title { font-size: 15px; color: var(--color-ink); }
+.side-panel-body { flex: 1; min-height: 0; overflow-y: auto; }
+.side-panel-toggle {
+  display: none; min-width: 28px; min-height: 28px; border-radius: 4px;
+  background: transparent; color: var(--color-ink-muted); cursor: pointer; font-size: 16px;
+}
+.side-panel-toggle:hover { color: var(--color-brand); background: var(--color-line); }
+@media (min-width: 1024px) { .side-panel-toggle { display: inline-flex; align-items: center; justify-content: center; } }
+/* The chat keeps its own full-height layout inside the panel body. */
+.side-panel-body .theater-chat { height: 100%; min-height: 360px; }
+.queue-entry {
+  display: flex; align-items: center; gap: 8px; padding: 6px;
+  border: 1px solid var(--color-line); border-radius: 4px; background: var(--color-surface);
+}
+.queue-entry:first-child { border-color: color-mix(in srgb, var(--color-accent) 60%, transparent); }
+/* Host only: three dots along the top edge say "you can drag this". */
+.queue-entry-draggable { position: relative; padding-top: 12px; cursor: grab; }
+.queue-entry-draggable:active { cursor: grabbing; }
+.queue-grip {
+  position: absolute; top: 3px; left: 50%; transform: translateX(-50%);
+  width: 18px; height: 4px;
+  background-image: radial-gradient(circle, var(--color-ink-muted) 1.2px, transparent 1.6px);
+  background-size: 6px 4px;
+}
+.queue-entry-draggable:hover .queue-grip {
+  background-image: radial-gradient(circle, var(--color-brand) 1.2px, transparent 1.6px);
+}
+.queue-entry-dragging { opacity: 0.4; }
+.queue-drop-above { box-shadow: 0 -3px 0 var(--color-brand); }
+.queue-drop-below { box-shadow: 0 3px 0 var(--color-brand); }
+.queue-index { width: 16px; text-align: center; font-size: 10px; color: var(--color-accent); }
+.queue-thumb {
+  width: 56px; aspect-ratio: 16 / 9; flex-shrink: 0; overflow: hidden;
+  border-radius: 2px; background: var(--color-surface-sunken);
+}
+.queue-actions {
+  display: grid; flex-shrink: 0; gap: 2px;
+  grid-template-rows: repeat(2, 28px); grid-template-columns: repeat(2, 28px); grid-auto-flow: column;
+}
+.queue-action {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 28px; min-height: 28px; border-radius: 4px; font-size: 12px;
+  background: transparent; color: var(--color-ink-muted); cursor: pointer;
+}
+.queue-action:hover:not(:disabled) { color: var(--color-brand); background: var(--color-line); }
+.queue-action:disabled { opacity: 0.3; cursor: default; }
+.watching-strip {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  margin-top: 12px; padding: 8px 12px; font-size: 13px;
+  background: var(--color-surface-raised); border: 1px solid var(--color-line); border-radius: 4px;
+}
+.watching-name { color: var(--color-ink); }
+.watching-name-button {
+  background: transparent; cursor: pointer; padding: 2px 6px; border-radius: 4px;
+  border: 1px dashed var(--color-line-strong);
+}
+.watching-name-button:hover { border-color: var(--color-brand); color: var(--color-brand); }
+/* Theater grid cards: the same pop as the library, with actions over the
+   thumbnail on hover or keyboard focus — always shown on touch screens, which
+   have no hover. */
+.theater-card:hover .clip-tile, .theater-card:focus-within .clip-tile {
+  z-index: 1; border-color: var(--color-brand);
+  box-shadow: 0 0 0 2px var(--color-brand),
+    0 0 24px 2px color-mix(in srgb, var(--color-brand) 40%, transparent);
+  transform: scale(1.05);
+}
+.theater-card:hover .clip-tile img, .theater-card:focus-within .clip-tile img { transform: scale(1.06); }
+.theater-card-actions {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: color-mix(in srgb, var(--color-surface-sunken) 55%, transparent);
+  opacity: 0; transition: opacity 120ms ease-out;
+}
+.theater-card:hover .theater-card-actions, .theater-card:focus-within .theater-card-actions,
+.theater-card-actions:has(.theater-card-flash) { opacity: 1; }
+@media (hover: none) { .theater-card-actions { opacity: 1; background: transparent; align-items: flex-end; padding: 8px; } }
+.theater-card-now { background: color-mix(in srgb, var(--color-surface) 80%, transparent); }
+.theater-card-flash {
+  padding: 6px 10px; border-radius: 4px; font-size: 12px;
+  background: var(--color-accent); color: var(--color-surface);
+}
+@media (prefers-reduced-motion: reduce) {
+  .theater-card-actions { transition: none; }
+  .theater-card:hover .clip-tile, .theater-card:focus-within .clip-tile,
+  .theater-card:hover .clip-tile img, .theater-card:focus-within .clip-tile img { transform: none; }
+}

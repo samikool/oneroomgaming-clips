@@ -11,6 +11,7 @@ function playing(overrides: Partial<RoomState> = {}): RoomState {
     paused: false,
     positionMs: 5_000,
     anchorServerTime: 1_000_000,
+    queue: [],
     rev: 3,
     ...overrides,
   };
@@ -26,6 +27,7 @@ describe("INITIAL_ROOM_STATE", () => {
       paused: true,
       positionMs: 0,
       anchorServerTime: 0,
+      queue: [],
       rev: 0,
     });
   });
