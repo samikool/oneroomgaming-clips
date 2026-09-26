@@ -4,7 +4,7 @@ import { existsSync, linkSync, mkdirSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import { ulid } from "ulid";
 import { getDb, type Db } from "@/db/client";
-import { createClip, getClip } from "@/db/clips";
+import { createClip, findClipByFingerprint, getClip } from "@/db/clips";
 import { enqueueStage } from "@/db/jobs";
 import { upsertUser } from "@/db/users";
 import { MissingAuthHeadersError } from "@/lib/auth";
@@ -18,6 +18,14 @@ export const UPLOAD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const ID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 const PATH = "/api/uploads";
 const error = (status_code: number, body: string) => ({ status_code, body });
+const FINGERPRINT = /^[0-9a-f]{64}$/;
+
+/**
+ * 409 naming the clip this file already is. JSON so the uploading tab can link
+ * to it; every duplicate refusal goes through here.
+ */
+const duplicateOf = (clip: { id: string; title: string }) =>
+  error(409, JSON.stringify({ duplicate: { clipId: clip.id, title: clip.title } }));
 
 /** Whole-percent upload progress, clamped and NaN-free for an unknown size. */
 export function progressPercent(offset: number, size: number | undefined): number {
@@ -39,6 +47,10 @@ export function createUploadService(db: Db, env: NodeJS.ProcessEnv = process.env
     if (upload.offset !== upload.size || !upload.size) return undefined;
     if (getClip(db, upload.id)) return undefined;
     const metadata = upload.metadata!;
+    // Checked again here, synchronously before the insert: two uploads of the
+    // same file can both pass onUploadCreate while neither is a clip yet.
+    const existing = metadata.fingerprint ? findClipByFingerprint(db, metadata.fingerprint) : undefined;
+    if (existing) throw duplicateOf(existing);
     const destination = join(incoming, `${upload.id}.mp4`);
     if (!existsSync(destination)) linkSync(join(directory, upload.id), destination);
     db.transaction(() => {
@@ -48,6 +60,7 @@ export function createUploadService(db: Db, env: NodeJS.ProcessEnv = process.env
         originalFilename: metadata.filename!,
         uploaderId: metadata.uploaderId!,
         sizeBytes: upload.size!,
+        fingerprint: metadata.fingerprint ?? null,
       });
       enqueueStage(db, upload.id, "probe");
     });
@@ -85,9 +98,22 @@ export function createUploadService(db: Db, env: NodeJS.ProcessEnv = process.env
       if (title.length > 200 || /[\x00-\x1f\x7f]/.test(title)) {
         throw error(400, "Use a title of 200 characters or fewer.");
       }
+      // Optional so an older tab still uploads; refused before any bytes move
+      // when the same file is already a clip, whoever uploaded it.
+      const fingerprint = upload.metadata?.fingerprint?.trim() || undefined;
+      if (fingerprint !== undefined) {
+        if (!FINGERPRINT.test(fingerprint)) throw error(400, "Invalid file fingerprint.");
+        const existing = findClipByFingerprint(db, fingerprint);
+        if (existing) throw duplicateOf(existing);
+      }
       const user = upsertUser(db, resolveIdentity(req.headers, env));
       // Replace, rather than merge, untrusted metadata.
-      return { metadata: { filename, title, owner: user.authentikUsername, uploaderId: user.id } };
+      return {
+        metadata: {
+          filename, title, owner: user.authentikUsername, uploaderId: user.id,
+          ...(fingerprint ? { fingerprint } : {}),
+        },
+      };
     },
     async onUploadFinish(_req, upload) {
       // Announced after finish returns, never inside it: finish is

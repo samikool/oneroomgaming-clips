@@ -20,6 +20,7 @@ export type BatchPhase =
   | "ready"
   | "failed"
   | "needs_transcode"
+  | "duplicate" // the server already has this exact file as a clip
   | "cancelled";
 
 export type BatchItem = {
@@ -40,8 +41,8 @@ export const EMPTY_BATCH: Batch = { items: [], paused: false };
 export type BatchFile = { key: string; name: string; size: number };
 
 const SENDING: readonly BatchPhase[] = ["starting", "uploading", "pausing"];
-const UPLOADED: readonly BatchPhase[] = ["processing", "ready", "failed", "needs_transcode"];
-const DONE: readonly BatchPhase[] = ["ready", "failed", "needs_transcode"];
+const UPLOADED: readonly BatchPhase[] = ["processing", "ready", "failed", "needs_transcode", "duplicate"];
+const DONE: readonly BatchPhase[] = ["ready", "failed", "needs_transcode", "duplicate"];
 /** Phases that closing the tab would lose. */
 const UNSENT: readonly BatchPhase[] = ["queued", ...SENDING, "paused", "error"];
 
