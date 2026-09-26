@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { useRealtime } from "@/lib/realtime/use-realtime";
 import type { Upload } from "tus-js-client";
+import { advanceQueue, canUploadAll, startQueue, type Phase, type QueueRun } from "@/lib/uploads/queue";
 
-type Phase = "queued" | "starting" | "uploading" | "pausing" | "paused" | "error" | "processing" | "ready" | "failed" | "needs_transcode" | "cancelled";
 const labels: Record<Phase, string> = {
   queued: "Ready to upload", starting: "Connecting…", uploading: "Uploading", pausing: "Pausing…",
   paused: "Paused", error: "Upload interrupted", processing: "Preparing your clip…", ready: "Ready to watch",
@@ -15,7 +15,10 @@ function bytes(value: number) {
   return value >= 1024 ** 3 ? `${(value / 1024 ** 3).toFixed(1)} GB` : `${(value / 1024 ** 2).toFixed(1)} MB`;
 }
 
-function UploadRow({ file, username }: { file: File; username: string }) {
+type RowHandle = { start(): void };
+const keyOf = (file: File) => `${file.name}-${file.size}-${file.lastModified}`;
+
+function UploadRow({ file, username, ref, onPhase }: { file: File; username: string; ref: Ref<RowHandle>; onPhase: (phase: Phase) => void }) {
   const titleId = useId();
   const [title, setTitle] = useState(file.name.replace(/\.[^.]+$/, "").slice(0, 200));
   const [phase, setPhase] = useState<Phase>("queued");
@@ -25,7 +28,12 @@ function UploadRow({ file, username }: { file: File; username: string }) {
   const upload = useRef<Upload | null>(null);
   const phaseRef = useRef<Phase>("queued");
   const mounted = useRef(true);
-  function transition(next: Phase) { phaseRef.current = next; if (mounted.current) setPhase(next); }
+  // Reported synchronously, not from an effect: batched renders could merge
+  // starting→error and the queue would never see the upload begin or end.
+  function transition(next: Phase) {
+    phaseRef.current = next;
+    if (mounted.current) { setPhase(next); onPhase(next); }
+  }
 
   useEffect(() => {
     mounted.current = true;
@@ -52,6 +60,8 @@ function UploadRow({ file, username }: { file: File; username: string }) {
       transition(status);
     }
   });
+
+  useImperativeHandle(ref, () => ({ start: () => void start() }));
 
   async function start() {
     if (!["queued", "paused", "error", "cancelled"].includes(phaseRef.current)) return;
@@ -141,11 +151,31 @@ export function UploadPanel({ username }: { username: string }) {
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  // Refs, not state, so a row's transition sees every earlier transition at
+  // once. The map's insertion order is the list order.
+  const phases = useRef(new Map<string, Phase>());
+  const rows = useRef(new Map<string, RowHandle>());
+  const run = useRef<QueueRun | null>(null);
+  const [, rerender] = useState(0);
+  const queueRows = () => Array.from(phases.current, ([key, phase]) => ({ key, phase }));
   function add(selected: File[]) {
     const valid = selected.filter(file => /\.(mp4|mov|mkv|webm|avi)$/i.test(file.name) && file.size > 0);
     setError(valid.length < selected.length ? "Choose non-empty MP4, MOV, MKV, WebM, or AVI videos." : "");
-    setFiles(current => [...current, ...valid.filter(file => !current.some(other => other.name === file.name && other.size === file.size && other.lastModified === file.lastModified))]);
+    const fresh = valid.filter(file => !phases.current.has(keyOf(file)));
+    for (const file of fresh) phases.current.set(keyOf(file), "queued");
+    setFiles(current => [...current, ...fresh]);
   }
+  function follow(next: QueueRun | null) {
+    const previous = run.current;
+    run.current = next;
+    if (next && next.current !== previous?.current) rows.current.get(next.current)?.start();
+    rerender(n => n + 1);
+  }
+  function onPhase(key: string, phase: Phase) {
+    phases.current.set(key, phase);
+    follow(advanceQueue(queueRows(), run.current, key));
+  }
+  const running = run.current !== null;
   return (
     <>
       <div className={`drop-area ${dragging ? "drop-active" : ""}`}
@@ -160,8 +190,19 @@ export function UploadPanel({ username }: { username: string }) {
       </div>
       <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-muted">You can pause and resume uploads. If you close this page, choose the same file again within 7 days to pick up where you left off. Its original title is kept when resuming.</p>
       {error && <p role="alert" className="mt-4 text-rose-300">{error}</p>}
+      {(running || canUploadAll(queueRows())) && (
+        <div className="mt-8 flex justify-end">
+          <button type="button" className="button-primary" disabled={running} onClick={() => follow(startQueue(queueRows()))}>
+            {running ? "Uploading all…" : "Upload all"}
+          </button>
+        </div>
+      )}
       <ul className="mt-8 space-y-4" aria-label="Your uploads">
-        {files.map(file => <UploadRow key={`${file.name}-${file.size}-${file.lastModified}`} file={file} username={username} />)}
+        {files.map(file => {
+          const key = keyOf(file);
+          return <UploadRow key={key} file={file} username={username} onPhase={phase => onPhase(key, phase)}
+            ref={handle => { if (handle) rows.current.set(key, handle); else rows.current.delete(key); }} />;
+        })}
       </ul>
     </>
   );

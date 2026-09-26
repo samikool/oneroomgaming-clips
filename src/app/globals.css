@@ -19,7 +19,8 @@ body {
   font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none;
 }
 .button-primary { background: #93c5fd; color: #102039; }
-.button-primary:hover { background: #bfdbfe; }
+.button-primary:hover:not(:disabled) { background: #bfdbfe; }
+.button-primary:disabled { opacity: 0.6; cursor: progress; }
 .button-secondary { background: #222b36; color: #e6e9ee; }
 .button-secondary:hover { background: #303b48; }
 .drop-area { border: 1px dashed #56677b; border-radius: 12px; padding: 40px 24px; text-align: center; background: #14181d; }
