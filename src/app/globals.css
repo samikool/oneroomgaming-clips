@@ -365,7 +365,7 @@ button:hover .clip-tile img, button:focus-visible .clip-tile img { transform: sc
   margin-top: 12px; padding: 8px 12px; font-size: 13px;
   background: var(--color-surface-raised); border: 1px solid var(--color-line); border-radius: 4px;
 }
-.watching-name { color: var(--color-ink); }
+.watching-name { display: inline-flex; align-items: center; gap: 4px; color: var(--color-ink); }
 .watching-name-button {
   background: transparent; cursor: pointer; padding: 2px 6px; border-radius: 4px;
   border: 1px dashed var(--color-line-strong);
@@ -490,3 +490,33 @@ button:hover .clip-tile img, button:focus-visible .clip-tile img { transform: sc
   color: var(--color-brand); text-transform: uppercase; letter-spacing: 0.04em;
   text-shadow: 4px 4px 0 var(--color-surface);
 }
+
+/* Identity (0.4.0): one look for a person everywhere they appear. */
+.avatar { display: inline-block; flex-shrink: 0; border-radius: 9999px; object-fit: cover; background: var(--color-surface-sunken); }
+.avatar-initial { display: inline-flex; align-items: center; justify-content: center; color: var(--color-surface); line-height: 1; }
+.user-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; vertical-align: middle; text-decoration: none; }
+.user-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+a.user-name:hover .user-name-text { text-decoration: underline; }
+.user-name-handle { font-size: 0.75em; color: var(--color-ink-muted); white-space: nowrap; }
+.person-chip { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.person-chip-avatar { display: inline-flex; border-radius: 9999px; }
+.person-chip-avatar:hover .avatar { outline: 1px solid var(--color-brand); outline-offset: 1px; }
+/* Profile page. The rule under the header takes the person's accent inline. */
+.profile-header { padding-bottom: 20px; border-bottom: 2px solid var(--color-line); }
+.profile-tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--color-line); }
+.profile-tabs .nav-link { background: transparent; cursor: pointer; }
+.profile-tab-active { box-shadow: inset 0 -2px 0 var(--color-brand); }
+.profile-editor { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.profile-editor-picture { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.picture-cropper { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.picture-cropper-canvas {
+  width: 240px; height: 240px; max-width: 100%; border-radius: 9999px; cursor: grab; touch-action: none;
+  background: var(--color-surface-sunken); border: 1px solid var(--color-line-strong);
+}
+.picture-cropper-canvas:active { cursor: grabbing; }
+.accent-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.accent-swatch { width: 28px; height: 28px; border-radius: 9999px; cursor: pointer; border: 2px solid transparent; }
+.accent-swatch:has(input:checked) { border-color: var(--color-ink); box-shadow: 0 0 0 2px var(--color-surface) inset; }
+.accent-swatch:has(input:focus-visible) { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.sign-out { display: inline-flex; flex-shrink: 0; padding: 6px; border-radius: 4px; color: var(--color-ink-muted); }
+.sign-out:hover { color: var(--color-ink); background: var(--color-surface-sunken); }

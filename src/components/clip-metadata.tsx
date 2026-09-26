@@ -5,6 +5,7 @@ import { useState } from "react";
 import { saveGame, saveParticipants, saveTags } from "@/app/clips/[id]/actions";
 import type { ClipMetadata } from "@/db/metadata";
 import { withFilter } from "@/lib/filters";
+import { PersonChip } from "./person-chip";
 
 /**
  * Metadata that is both a filter affordance and an edit surface.
@@ -104,9 +105,12 @@ export function ClipMetadataPanel({
         </Link>
       ))}
       {metadata.participants.map((user) => (
-        <Link key={user} className="chip-button" href={withFilter({}, "participant", user)}>
-          {user}
-        </Link>
+        <PersonChip
+          key={user}
+          username={user}
+          className="chip-button"
+          filterHref={withFilter({}, "participant", user)}
+        />
       ))}
       {nothingSet && <span className="text-sm text-ink-muted">No tags yet.</span>}
       <button type="button" className="chip-button" onClick={() => setEditing(true)}>

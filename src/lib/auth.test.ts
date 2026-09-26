@@ -3,6 +3,7 @@ import {
   assertAdmin,
   devIdentityOverride,
   isAdmin,
+  isDevFallbackIdentity,
   NotAuthorizedError,
   MissingAuthHeadersError,
   parseAuthentikHeaders,
@@ -201,5 +202,16 @@ describe("assertAdmin", () => {
 
     expect(message).not.toContain("sam");
     expect(message).not.toContain("kel");
+  });
+});
+
+describe("isDevFallbackIdentity", () => {
+  it("is true only when the header is missing and the dev fallback applies", () => {
+    const dev = { NODE_ENV: "development", DEV_AUTH_USERNAME: "sam" } as const;
+    expect(isDevFallbackIdentity({}, dev)).toBe(true);
+    expect(isDevFallbackIdentity({ "x-authentik-username": "sam" }, dev)).toBe(false);
+    expect(isDevFallbackIdentity(new Headers({ "X-Authentik-Username": "sam" }), dev)).toBe(false);
+    expect(isDevFallbackIdentity({}, { NODE_ENV: "production", DEV_AUTH_USERNAME: "sam" })).toBe(false);
+    expect(isDevFallbackIdentity({}, { NODE_ENV: "development", DEV_AUTH_USERNAME: "  " })).toBe(false);
   });
 });

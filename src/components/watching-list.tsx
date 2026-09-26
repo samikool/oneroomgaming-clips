@@ -1,5 +1,7 @@
 "use client";
 
+import { UserName } from "./user-name";
+
 /**
  * Who is in the room, who has control, and — for the host — the buttons to
  * hand it over. The handoff lives here rather than in the player because it is
@@ -34,8 +36,9 @@ export function WatchingList({
       <ul className="flex flex-col gap-2">
         {inRoom.map((user) => (
           <li key={user} className="flex items-center gap-2">
-            <span className="flex-1 truncate text-sm text-ink">
-              {user === me ? `${user} (you)` : user}
+            <span className="flex min-w-0 flex-1 items-center gap-1 text-sm text-ink">
+              <UserName username={user} variant="compact" withAvatar />
+              {user === me && <span className="shrink-0 text-ink-muted">(you)</span>}
             </span>
             {user === hostUserId && <span className="text-xs text-ink-muted">host</span>}
             {iAmHost && user !== me && (

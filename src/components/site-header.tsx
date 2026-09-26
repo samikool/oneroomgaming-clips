@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { PresenceBar } from "@/components/presence-bar";
+import { SignOut } from "@/components/sign-out";
+import { UserName } from "@/components/user-name";
 import {
   type BarBox,
   barStyle,
@@ -16,7 +18,7 @@ import {
 } from "@/lib/nav";
 import { PANEL_MS, SETTLE, useSlide } from "./page-slide";
 
-export function SiteHeader({ me, name }: { me: string; name: string }) {
+export function SiteHeader({ me, showSignOut }: { me: string; showSignOut: boolean }) {
   const pathname = usePathname();
   const slide = useSlide();
   const run = slide?.run ?? null;
@@ -127,9 +129,11 @@ export function SiteHeader({ me, name }: { me: string; name: string }) {
           })}
           {target !== null && <span ref={bar} className="nav-underline" aria-hidden="true" />}
         </nav>
-        <p className="ml-auto min-w-0 text-sm text-ink-muted">
-          <span className="text-ink">{name}</span> · <PresenceBar me={me} />
-        </p>
+        <div className="ml-auto flex min-w-0 items-center gap-3 text-sm text-ink-muted">
+          <PresenceBar me={me} />
+          <UserName username={me} />
+          {showSignOut && <SignOut />}
+        </div>
       </div>
     </header>
   );

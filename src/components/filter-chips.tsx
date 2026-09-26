@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { activeFilters, withoutFilter, type ClipFilters } from "@/lib/filters";
+import { UserName } from "./user-name";
 
 const LABEL: Record<keyof ClipFilters, string> = {
   tag: "tag",
@@ -20,7 +21,12 @@ export function FilterChips({ filters }: { filters: ClipFilters }) {
     <div className="filter-chips">
       {active.map(({ key, value }) => (
         <Link key={key} className="filter-chip" href={withoutFilter(filters, key)}>
-          <span className="text-ink-muted">{LABEL[key]}:</span> {value}
+          <span className="text-ink-muted">{LABEL[key]}:</span>{" "}
+          {key === "uploader" || key === "participant" ? (
+            <UserName username={value} variant="compact" link={false} />
+          ) : (
+            value
+          )}
           <span aria-hidden="true"> ×</span>
           <span className="sr-only">Remove this filter</span>
         </Link>

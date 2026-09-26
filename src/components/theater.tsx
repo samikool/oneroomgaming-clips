@@ -16,6 +16,7 @@ import { SidePanel } from "./side-panel";
 import { TheaterChat } from "./theater-chat";
 import { TheaterGrid } from "./theater-grid";
 import { TheaterQueue } from "./theater-queue";
+import { UserName } from "./user-name";
 import { WatchingList } from "./watching-list";
 import { WatchingStrip } from "./watching-strip";
 
@@ -375,7 +376,9 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
         <div className="theater-requests" role="status">
           {view.requests.map((request) => (
             <div key={request.user} className="theater-request">
-              <span className="text-sm text-ink">{request.user} wants control</span>
+              <span className="inline-flex min-w-0 items-center gap-1.5 text-sm text-ink">
+                <UserName username={request.user} /> wants control
+              </span>
               <button
                 type="button"
                 className="chip-button"

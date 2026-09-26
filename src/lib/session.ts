@@ -1,9 +1,11 @@
 import { cache } from "react";
 import { headers } from "next/headers";
-import { assertAdmin, resolveIdentity } from "@/lib/auth";
+import { assertAdmin, isDevFallbackIdentity, resolveIdentity } from "@/lib/auth";
 import { getDb } from "@/db/client";
-import { upsertUser } from "@/db/users";
+import { upsertUserTracked } from "@/db/users";
+import { toProfile } from "@/db/profiles";
 import type { User } from "@/db/schema";
+import { publish } from "@/lib/realtime/publish";
 
 // resolveIdentity lives in @/lib/auth: the realtime process needs it too,
 // and this module imports next/headers and the database.
@@ -11,8 +13,20 @@ export { resolveIdentity };
 
 export const requireUser = cache(async function requireUser(): Promise<User> {
   const identity = resolveIdentity(await headers());
-  return upsertUser(getDb(), identity);
+  const { user, created } = upsertUserTracked(getDb(), identity);
+
+  if (created) {
+    // Everyone else's directory learns about the newcomer without a reload.
+    void publish({ t: "profile.updated", profile: toProfile(user) });
+  }
+
+  return user;
 });
+
+/** Whether this request is signed in by the dev fallback rather than Authentik. */
+export async function signedInViaDevFallback(): Promise<boolean> {
+  return isDevFallbackIdentity(await headers());
+}
 
 /**
  * `requireUser`, but refuses anyone who is not in `CLIPS_ADMINS`.

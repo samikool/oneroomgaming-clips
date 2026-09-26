@@ -3,8 +3,10 @@ import "./globals.css";
 import { display, pixel } from "./fonts";
 import { AppShell } from "@/components/app-shell";
 import { ChangelogModal } from "@/components/changelog-modal";
+import { getDb } from "@/db/client";
+import { listProfiles } from "@/db/profiles";
 import { formatEntryDate, getChangelogEntries } from "@/lib/changelog";
-import { requireUser } from "@/lib/session";
+import { requireUser, signedInViaDevFallback } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "clips",
@@ -16,11 +18,17 @@ export default async function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const [latest] = getChangelogEntries();
   const user = await requireUser();
+  // After requireUser, so a first-time visitor is already in their own directory.
+  const profiles = listProfiles(getDb());
+  // The dev fallback has no Authentik session to end.
+  const showSignOut = !(await signedInViaDevFallback());
 
   return (
     <html lang="en" className={`${display.variable} ${pixel.variable}`}>
       <body className="min-h-screen antialiased">
-        <AppShell me={user.authentikUsername} name={user.displayName ?? user.authentikUsername}>{children}</AppShell>
+        <AppShell me={user.authentikUsername} showSignOut={showSignOut} profiles={profiles}>
+          {children}
+        </AppShell>
         {latest && (
           <ChangelogModal
             version={latest.version}

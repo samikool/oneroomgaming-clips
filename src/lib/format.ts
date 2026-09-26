@@ -29,3 +29,23 @@ export function formatBytes(bytes: number): string {
   // Whole bytes read oddly with a decimal; everything above benefits from one.
   return unit === 0 ? `${Math.round(value)} B` : `${value.toFixed(1)} ${UNITS[unit]}`;
 }
+
+const AGO_UNITS: [ms: number, suffix: string][] = [
+  [365 * 86_400_000, "y"],
+  [86_400_000, "d"],
+  [3_600_000, "h"],
+  [60_000, "m"],
+];
+
+/** "5m ago", in the largest whole unit. A timestamp from the future is "just now". */
+export function formatAgo(at: number, now: number = Date.now()): string {
+  const elapsed = now - at;
+
+  for (const [size, suffix] of AGO_UNITS) {
+    if (elapsed >= size) {
+      return `${Math.floor(elapsed / size)}${suffix} ago`;
+    }
+  }
+
+  return "just now";
+}

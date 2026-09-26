@@ -2,6 +2,7 @@ import Link from "next/link";
 import { withFilter } from "@/lib/filters";
 import type { ClipStatus } from "@/db/schema";
 import { formatDuration } from "@/lib/format";
+import { PersonChip } from "./person-chip";
 
 const STATUS_LABEL: Partial<Record<ClipStatus, string>> = {
   pending: "Queued",
@@ -84,9 +85,11 @@ export function ClipCard({
   const footer = (clip.uploader || clip.game) && (
     <p className="mt-2 flex flex-wrap gap-1.5 text-xs">
       {clip.uploader && (
-        <Link className="meta-chip" href={withFilter({}, "uploader", clip.uploader)}>
-          {clip.uploader}
-        </Link>
+        <PersonChip
+          username={clip.uploader}
+          className="meta-chip"
+          filterHref={withFilter({}, "uploader", clip.uploader)}
+        />
       )}
       {clip.game && (
         <Link className="meta-chip" href={withFilter({}, "game", clip.game.slug)}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { formatBytes, formatDuration } from "@/lib/format";
+import { formatAgo, formatBytes, formatDuration } from "@/lib/format";
 
 describe("formatDuration", () => {
   it("formats seconds under a minute", () => {
@@ -40,5 +40,21 @@ describe("formatBytes", () => {
 
   it("handles zero", () => {
     expect(formatBytes(0)).toBe("0 B");
+  });
+});
+
+describe("formatAgo", () => {
+  const now = 1_000_000_000_000;
+
+  it("says just now under a minute, and for clocks slightly ahead", () => {
+    expect(formatAgo(now - 30_000, now)).toBe("just now");
+    expect(formatAgo(now + 5_000, now)).toBe("just now");
+  });
+
+  it("uses the largest whole unit", () => {
+    expect(formatAgo(now - 5 * 60_000, now)).toBe("5m ago");
+    expect(formatAgo(now - 3 * 3_600_000, now)).toBe("3h ago");
+    expect(formatAgo(now - 2 * 86_400_000, now)).toBe("2d ago");
+    expect(formatAgo(now - 400 * 86_400_000, now)).toBe("1y ago");
   });
 });

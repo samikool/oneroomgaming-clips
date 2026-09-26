@@ -6,6 +6,11 @@ export const users = sqliteTable("users", {
   email: text("email"),
   displayName: text("display_name"),
   avatarUrl: text("avatar_url"),
+  // 0.4.0 profiles. All nullable: every fallback is resolved in profiles.ts.
+  profileName: text("profile_name"),
+  accent: text("accent"),
+  bio: text("bio"),
+  pictureVersion: integer("picture_version"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull(),
 });
