@@ -7,7 +7,9 @@ import { mergeClip, type ClipMap } from "@/lib/realtime/merge";
 import { useRealtime } from "@/lib/realtime/use-realtime";
 import { createSyncController, type SyncController } from "@/lib/theater/sync-controller";
 import { useRoom } from "@/lib/theater/use-room";
+import { useVolume } from "@/lib/theater/use-volume";
 import { TheaterTransport } from "./theater-transport";
+import { VolumeControl } from "./volume-control";
 import { ReactionBar } from "./reaction-bar";
 import { ReactionStream } from "./reaction-stream";
 import { SidePanel } from "./side-panel";
@@ -39,6 +41,7 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
 
   const { state } = view;
   const joined = view.inRoom.includes(me);
+  const [volume, setVolume] = useVolume(videoRef, state.clipId);
   const iAmHost = state.hostUserId === me;
 
   // Opening the theater is joining it. Once per visit, on the first presence
@@ -263,7 +266,9 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
                 onPause={() => send({ t: "room.control", action: "pause" })}
                 onSeek={(positionMs) => send({ t: "room.control", action: "seek", positionMs })}
                 onRequestControl={() => send({ t: "room.requestControl" })}
-              />
+              >
+                <VolumeControl volume={volume} onChange={setVolume} />
+              </TheaterTransport>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <ReactionBar onReact={react} />
                 <button
