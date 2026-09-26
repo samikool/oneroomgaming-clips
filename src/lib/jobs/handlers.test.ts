@@ -96,6 +96,61 @@ describe("remux handler", () => {
   });
 });
 
+describe("remux handler (OBS replay clip with a hidden lead-in)", () => {
+  // OBS writes frames back to the previous keyframe and hides them behind an
+  // edit list. Players must decode that lead-in before the first visible
+  // frame, and software decoders visibly freeze doing it. The remux turns the
+  // lead-in into ordinary footage instead.
+
+  async function ffmpeg(args: string[]) {
+    const proc = Bun.spawn(["ffmpeg", "-loglevel", "error", "-y", ...args], { stdout: "pipe", stderr: "pipe" });
+    await proc.exited;
+  }
+
+  async function firstVideoPacket(path: string): Promise<string> {
+    const proc = Bun.spawn([
+      "ffprobe", "-v", "error", "-select_streams", "v:0",
+      "-show_entries", "packet=pts_time,flags", "-of", "csv=p=0", path,
+    ], { stdout: "pipe", stderr: "pipe" });
+    const out = await new Response(proc.stdout).text();
+    await proc.exited;
+    return out.split("\n")[0].trim();
+  }
+
+  it("starts the stored clip on a visible keyframe at zero, lead-in included", async () => {
+    const clip = createClip(db, { title: "obs", originalFilename: "obs.mp4", sizeBytes: 0 });
+    const input = join(root, "incoming", `${clip.id}.mp4`);
+    const full = join(root, `${clip.id}-full.mp4`);
+
+    await ffmpeg([
+      "-f", "lavfi", "-i", "testsrc=duration=4:size=320x240:rate=30",
+      "-f", "lavfi", "-i", "sine=duration=4:sample_rate=48000",
+      "-c:v", "libx264", "-g", "60", "-bf", "0", "-pix_fmt", "yuv420p",
+      "-c:a", "aac", full,
+    ]);
+    await ffmpeg(["-ss", "1.2", "-i", full, "-c", "copy", input]);
+
+    // The fixture must actually have the hidden lead-in, or this proves nothing.
+    expect(await firstVideoPacket(input)).toMatch(/^-1\.2\d*,K/);
+
+    const probeJob = enqueueJob(db, clip.id, "probe");
+    claimNextJob(db);
+    await handlers.probe({ db, env }, probeJob);
+    const remuxJob = db.select().from(jobsTable).where(eq(jobsTable.type, "remux")).get()!;
+    await handlers.remux({ db, env }, remuxJob);
+
+    const output = join(root, "clips", `${clip.id}.mp4`);
+    const [pts, flags] = (await firstVideoPacket(output)).split(",");
+    expect(Number(pts)).toBeGreaterThanOrEqual(0);
+    expect(Number(pts)).toBeLessThan(0.05);
+    expect(flags.startsWith("K")).toBe(true);
+
+    // The stored duration grows by the lead-in: 2.8s visible + 1.2s lead-in.
+    const updated = db.select().from(clipsTable).where(eq(clipsTable.id, clip.id)).get();
+    expect(updated?.durationMs).toBeGreaterThan(3800);
+  });
+});
+
 describe("thumbnail handler", () => {
   it("writes a thumbnail and marks the clip ready", async () => {
     const clip = createClip(db, { title: "a", originalFilename: "a.mp4", sizeBytes: 0 });

@@ -4,6 +4,7 @@ import { enqueueStage } from "@/db/jobs";
 import type { JobType } from "@/db/schema";
 import { isBrowserPlayable } from "@/lib/media/codecs";
 import { removeSourceArtifacts } from "@/lib/media/cleanup";
+import { hasObsLeadIn } from "@/lib/media/editlist";
 import {
   clipFilename, clipsDir, incomingDir, thumbFilename,
   thumbPublicPath, thumbsDir,
@@ -46,9 +47,20 @@ const remux: JobHandler = async (ctx, job) => {
   const input = incomingPath(ctx, job.clipId);
   const output = join(clipsDir(ctx.env), clipFilename(job.clipId));
 
-  await remuxFaststart(input, output);
+  // OBS replay clips hide a lead-in back to the previous keyframe behind an
+  // edit list, and players freeze decoding it. Keep it as visible footage
+  // instead; every other file is remuxed untouched.
+  const stripLeadIn = await hasObsLeadIn(input);
+  await remuxFaststart(input, output, undefined, { ignoreEditList: stripLeadIn });
 
   const info = await probeFile(output);
+
+  if (stripLeadIn) {
+    // The clip row was filled from the incoming file, whose duration excluded
+    // the lead-in. The stored clip now plays it, so describe that file.
+    applyProbe(ctx.db, job.clipId, info);
+  }
+
   recordMediaFile(ctx.db, job.clipId, {
     kind: "original",
     path: output,
