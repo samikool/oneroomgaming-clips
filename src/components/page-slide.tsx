@@ -220,13 +220,19 @@ export function PageSlide({ children }: { children: React.ReactNode }) {
   }, [arrived, run?.id]);
 
   return (
-    <div
-      key={pathname}
-      ref={node}
-      className="page-slide"
-      style={run && !arrived ? { visibility: "hidden" } : undefined}
-    >
-      {children}
+    // The frame keeps the page's entrance from widening the document: while it
+    // sits a screen to the right, anything that scrolls itself into view (the
+    // theater chat, on mount) would scroll the whole window sideways after it,
+    // header and all.
+    <div className="page-slide-frame">
+      <div
+        key={pathname}
+        ref={node}
+        className="page-slide"
+        style={run && !arrived ? { visibility: "hidden" } : undefined}
+      >
+        {children}
+      </div>
     </div>
   );
 }
