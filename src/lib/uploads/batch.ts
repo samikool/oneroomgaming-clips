@@ -155,3 +155,26 @@ export function clearFinished(batch: Batch): Batch {
     items: batch.items.filter((i) => !DONE.includes(i.phase) && i.phase !== "cancelled"),
   };
 }
+
+/** Clips this tab is still waiting on the server to prepare. */
+export function processingClipIds(batch: Batch): string[] {
+  return batch.items.flatMap((i) => (i.phase === "processing" && i.clipId ? [i.clipId] : []));
+}
+
+/**
+ * Applies clip statuses fetched from the server, for when the pushed update
+ * was missed (the socket was down at the moment a clip finished). Only a
+ * processing upload moves, and only to a final state.
+ */
+export function settleProcessing(batch: Batch, statuses: Record<string, string>): Batch {
+  return {
+    ...batch,
+    items: batch.items.map((i) => {
+      const status = i.clipId ? statuses[i.clipId] : undefined;
+
+      return i.phase === "processing" && (DONE as readonly string[]).includes(status ?? "")
+        ? { ...i, phase: status as BatchPhase }
+        : i;
+    }),
+  };
+}

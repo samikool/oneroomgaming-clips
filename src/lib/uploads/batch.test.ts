@@ -6,8 +6,10 @@ import {
   isActive,
   nextToSend,
   pauseAll,
+  processingClipIds,
   resumeAll,
   retry,
+  settleProcessing,
   startBatch,
   summarize,
   type BatchItem,
@@ -146,5 +148,33 @@ describe("isActive and clearFinished", () => {
       batch([item("a", "ready"), item("b", "cancelled"), item("c", "staged"), item("d", "processing")]),
     );
     expect(next.items.map((i) => i.key)).toEqual(["c", "d"]);
+  });
+});
+
+describe("settleProcessing", () => {
+  it("finishes processing uploads whose clip has settled", () => {
+    const next = settleProcessing(
+      batch([
+        item("a", "processing", { clipId: "c1" }),
+        item("b", "processing", { clipId: "c2" }),
+        item("c", "processing", { clipId: "c3" }),
+      ]),
+      { c1: "ready", c2: "failed", c3: "processing" },
+    );
+    expect(next.items.map((i) => i.phase)).toEqual(["ready", "failed", "processing"]);
+  });
+
+  it("leaves anything not processing alone, and ignores unknown statuses", () => {
+    const before = batch([item("a", "uploading", { clipId: "c1" }), item("b", "processing", { clipId: "c2" })]);
+    const next = settleProcessing(before, { c1: "ready", c2: "exploded" });
+    expect(next.items.map((i) => i.phase)).toEqual(["uploading", "processing"]);
+  });
+});
+
+describe("processingClipIds", () => {
+  it("lists the clips still being prepared", () => {
+    expect(
+      processingClipIds(batch([item("a", "processing", { clipId: "c1" }), item("b", "ready", { clipId: "c2" })])),
+    ).toEqual(["c1"]);
   });
 });
