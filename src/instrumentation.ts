@@ -16,6 +16,13 @@ export async function register() {
   if (state.clipsPipelineStarted) return;
   state.clipsPipelineStarted = true;
 
+  // First deploy, or a fresh database: build the search index once. Before the
+  // scanner starts, so a newly ingested clip can't make the index look built.
+  const { reindexAll, searchIndexIsEmpty } = await import("@/db/search");
+  if (searchIndexIsEmpty(ctx.db)) {
+    console.log(`search: indexed ${reindexAll(ctx.db)} clips`);
+  }
+
   const { recoverRunningJobs } = await import("@/db/jobs");
   recoverRunningJobs(ctx.db);
   startRunner(ctx);

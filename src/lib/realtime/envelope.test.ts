@@ -13,6 +13,8 @@ const clip = {
   thumbPath: "/media/thumbs/01ABC.jpg",
   durationMs: 4200,
   createdAt: 1_700_000_000_000,
+  likeCount: 0,
+  likedByMe: false,
 };
 
 describe("topicsFor", () => {

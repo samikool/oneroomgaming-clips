@@ -140,6 +140,8 @@ describe("reduceRoom — everything else", () => {
       thumbPath: null,
       durationMs: null,
       createdAt: 1,
+      likeCount: 0,
+      likedByMe: false,
     };
 
     expect(reduceRoom(INITIAL_ROOM_VIEW, { t: "clip.added", clip }, 0)).toBe(INITIAL_ROOM_VIEW);

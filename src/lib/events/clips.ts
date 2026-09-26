@@ -5,6 +5,11 @@ import type { Clip } from "@/db/schema";
 import type { ClipSummary } from "@/lib/realtime/envelope";
 import { publish } from "@/lib/realtime/publish";
 
+/**
+ * One argument on purpose: pages call `rows.map(toSummary)`, which would pass
+ * the index as a second one. Callers that know the likes spread them over the
+ * result (see `browseClips`).
+ */
 export function toSummary(clip: Clip | GridClip): ClipSummary {
   const meta = clip as Partial<GridClip>;
 
@@ -18,6 +23,8 @@ export function toSummary(clip: Clip | GridClip): ClipSummary {
     createdAt: clip.createdAt.getTime(),
     uploader: meta.uploader ?? null,
     game: meta.game ?? null,
+    likeCount: 0,
+    likedByMe: false,
   };
 }
 

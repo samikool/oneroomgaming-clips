@@ -2,6 +2,7 @@ import { asc, eq, inArray } from "drizzle-orm";
 import { ulid } from "ulid";
 import type { Db } from "./client";
 import { clipParticipants, clips, clipTags, games, tags, users } from "./schema";
+import { reindexClip } from "./search";
 
 export type ClipMetadata = {
   tags: string[];
@@ -85,6 +86,7 @@ export function setClipTags(db: Db, clipId: string, names: string[]): string[] {
     db.insert(clipTags).values({ clipId, tagId: id }).run();
   }
 
+  reindexClip(db, clipId);
   return wanted;
 }
 
@@ -94,6 +96,7 @@ export function setClipGame(db: Db, clipId: string, name: string | null): string
 
   if (trimmed.length === 0) {
     db.update(clips).set({ gameId: null }).where(eq(clips.id, clipId)).run();
+    reindexClip(db, clipId);
     return null;
   }
 
@@ -106,6 +109,7 @@ export function setClipGame(db: Db, clipId: string, name: string | null): string
   }
 
   db.update(clips).set({ gameId: id }).where(eq(clips.id, clipId)).run();
+  reindexClip(db, clipId);
 
   // The first spelling wins, so "Valorant" does not become "valorant" because
   // someone typed it in lowercase later.
@@ -119,6 +123,7 @@ export function setClipParticipants(db: Db, clipId: string, usernames: string[])
   db.delete(clipParticipants).where(eq(clipParticipants.clipId, clipId)).run();
 
   if (wanted.length === 0) {
+    reindexClip(db, clipId);
     return [];
   }
 
@@ -133,6 +138,8 @@ export function setClipParticipants(db: Db, clipId: string, usernames: string[])
   for (const user of known) {
     db.insert(clipParticipants).values({ clipId, userId: user.id }).run();
   }
+
+  reindexClip(db, clipId);
 
   return known.map((user) => user.name).sort();
 }

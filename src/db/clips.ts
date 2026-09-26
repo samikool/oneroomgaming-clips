@@ -17,6 +17,7 @@ import {
 } from "./schema";
 import type { ClipFilters } from "@/lib/filters";
 import type { MediaInfo } from "@/lib/media/probe";
+import { reindexClip } from "./search";
 
 export function createClip(
   db: Db,
@@ -31,7 +32,7 @@ export function createClip(
   },
   now: Date = new Date(),
 ): Clip {
-  return db
+  const clip = db
     .insert(clips)
     .values({
       id: input.id ?? ulid(),
@@ -54,6 +55,9 @@ export function createClip(
     })
     .returning()
     .get();
+
+  reindexClip(db, clip.id);
+  return clip;
 }
 
 export function applyProbe(db: Db, clipId: string, info: MediaInfo): Clip {
@@ -176,6 +180,7 @@ export function deleteClipCascade(db: Db, id: string): void {
     tx.delete(views).where(eq(views.clipId, id)).run();
     tx.delete(jobs).where(eq(jobs.clipId, id)).run();
     tx.delete(mediaFiles).where(eq(mediaFiles.clipId, id)).run();
+    tx.run(sql`DELETE FROM clip_search WHERE clip_id = ${id}`);
     tx.delete(clips).where(eq(clips.id, id)).run();
   });
 }
@@ -271,8 +276,11 @@ export type GridClip = Clip & {
  * twice, and widening it would undo that.
  */
 export function listClipsForGrid(db: Db, filters: ClipFilters = {}, limit = 100): GridClip[] {
-  const rows = listClips(db, filters, limit);
+  return hydrateGridClips(db, listClips(db, filters, limit));
+}
 
+/** Adds the uploader's username and the game to each row, in the order given. */
+export function hydrateGridClips(db: Db, rows: Clip[]): GridClip[] {
   if (rows.length === 0) {
     return [];
   }

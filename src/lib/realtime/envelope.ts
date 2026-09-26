@@ -20,6 +20,9 @@ export type ClipSummary = {
    */
   uploader?: string | null;
   game?: { name: string; slug: string } | null;
+  /** 0.4.0 likes. Live `clip.added` carries 0/false: a brand-new clip has none. */
+  likeCount: number;
+  likedByMe: boolean;
 };
 
 /**
