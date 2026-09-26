@@ -2,6 +2,7 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { ulid } from "ulid";
 import type { Db } from "./client";
 import { comments, users } from "./schema";
+import { reindexClip } from "./search";
 
 /**
  * A comment as the UI and the wire both want it: the author's Authentik
@@ -72,6 +73,7 @@ export function addComment(
       deletedAt: null,
     })
     .run();
+  reindexClip(db, input.clipId);
 
   const row = getComment(db, id);
 
@@ -113,7 +115,7 @@ export function listComments(db: Db, clipId: string): CommentRow[] {
  */
 export function softDeleteComment(db: Db, id: string, userId: string): boolean {
   const existing = db
-    .select({ id: comments.id, deletedAt: comments.deletedAt })
+    .select({ id: comments.id, clipId: comments.clipId, deletedAt: comments.deletedAt })
     .from(comments)
     .where(and(eq(comments.id, id), eq(comments.userId, userId)))
     .get();
@@ -130,6 +132,7 @@ export function softDeleteComment(db: Db, id: string, userId: string): boolean {
     .set({ deletedAt: new Date() })
     .where(and(eq(comments.id, id), eq(comments.userId, userId), isNull(comments.deletedAt)))
     .run();
+  reindexClip(db, existing.clipId);
 
   return true;
 }

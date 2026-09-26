@@ -9,6 +9,8 @@ const clip = {
   thumbPath: null,
   durationMs: null,
   createdAt: 1,
+  likeCount: 0,
+  likedByMe: false,
 };
 const message: ServerMessage = { t: "clip.updated", clip };
 

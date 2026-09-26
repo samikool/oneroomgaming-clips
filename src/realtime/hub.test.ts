@@ -9,6 +9,8 @@ const clip = {
   thumbPath: null,
   durationMs: null,
   createdAt: 1,
+  likeCount: 0,
+  likedByMe: false,
 };
 const clipAdded: ServerMessage = { t: "clip.added", clip };
 const progress: ServerMessage = { t: "upload.progress", uploadId: "u1", pct: 5, user: "sam" };

@@ -8,6 +8,8 @@ const a = {
   thumbPath: null,
   durationMs: null,
   createdAt: 2,
+  likeCount: 0,
+  likedByMe: false,
 };
 const b = {
   id: "b",
@@ -16,6 +18,8 @@ const b = {
   thumbPath: null,
   durationMs: null,
   createdAt: 1,
+  likeCount: 0,
+  likedByMe: false,
 };
 
 describe("mergeClip", () => {
