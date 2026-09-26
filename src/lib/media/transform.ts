@@ -50,13 +50,28 @@ function wroteOutput(path: string): boolean {
   }
 }
 
+export type RemuxOptions = {
+  /**
+   * Drop the input's edit lists, so frames they hid play as ordinary footage.
+   * Used for OBS replay clips, whose hidden lead-in makes players freeze
+   * while they decode it — see `shouldStripLeadIn` for when it's safe.
+   */
+  ignoreEditList?: boolean;
+};
+
 export async function remuxFaststart(
   input: string,
   output: string,
   run: FfmpegRunner = runFfmpeg,
+  options: RemuxOptions = {},
 ): Promise<void> {
   mkdirSync(dirname(output), { recursive: true });
-  await run("remux", input, ["-i", input, "-c", "copy", "-movflags", "+faststart", output]);
+
+  // A demuxer option, so it must precede the -i it applies to.
+  const inputOptions = options.ignoreEditList ? ["-ignore_editlist", "1"] : [];
+  await run("remux", input, [
+    ...inputOptions, "-i", input, "-c", "copy", "-movflags", "+faststart", output,
+  ]);
 
   if (!wroteOutput(output)) {
     // Reporting success here writes a clip row pointing at a file that does

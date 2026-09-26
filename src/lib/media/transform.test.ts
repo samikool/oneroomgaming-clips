@@ -130,3 +130,29 @@ describe("remuxFaststart — an ffmpeg that succeeds without writing", () => {
     await expect(remuxFaststart(sample, out, async () => {})).rejects.toThrow(TransformError);
   });
 });
+
+describe("remuxFaststart — ignoreEditList", () => {
+  it("passes -ignore_editlist 1 as an input option only when asked", async () => {
+    const calls: string[][] = [];
+    const spy = async (_action: string, _input: string, args: string[]) => {
+      calls.push(args);
+      await run(["ffmpeg", "-loglevel", "error", "-y", ...args]);
+    };
+
+    await remuxFaststart(sample, join(dir, "plain-remux.mp4"), spy);
+    await remuxFaststart(sample, join(dir, "stripped-remux.mp4"), spy, { ignoreEditList: true });
+
+    expect(calls[0]).not.toContain("-ignore_editlist");
+    // It's a demuxer option: after -i it would apply to the output and fail.
+    const stripped = calls[1];
+    expect(stripped.indexOf("-ignore_editlist")).toBeGreaterThanOrEqual(0);
+    expect(stripped[stripped.indexOf("-ignore_editlist") + 1]).toBe("1");
+    expect(stripped.indexOf("-ignore_editlist")).toBeLessThan(stripped.indexOf("-i"));
+  });
+
+  it("still throws when ffmpeg writes nothing", async () => {
+    await expect(
+      remuxFaststart(sample, join(dir, "stripped-never-written.mp4"), async () => {}, { ignoreEditList: true }),
+    ).rejects.toThrow(TransformError);
+  });
+});
