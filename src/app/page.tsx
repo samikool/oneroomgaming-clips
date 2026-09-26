@@ -24,21 +24,22 @@ export default async function Home({
   const filtered = Object.keys(filters).length > 0;
 
   return (
-    <main className="mx-auto max-w-6xl p-8">
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="mb-1 text-sm text-ink-muted">One Room Gaming</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-ink">Clips</h1>
-          <DiskUsage bytes={totalDiskBytes(db)} />
+    <main className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
+      <header className="mb-8">
+        <div className="flex items-end justify-between gap-4">
+          <div className="min-w-0">
+            <p className="mb-1 text-sm text-ink-muted">One Room Gaming</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-ink">Clips</h1>
+          </div>
+          <Link href="/upload" className="button-primary shrink-0">
+            Upload clips
+          </Link>
         </div>
-        <Link href="/upload" className="button-primary sm:ml-auto">
-          Upload clips
-        </Link>
-        <div className="text-right">
-          <p className="text-sm text-ink-muted">{user.displayName ?? user.authentikUsername}</p>
-          <PresenceBar me={user.authentikUsername} />
-        </div>
-      </div>
+        <p className="mt-2 text-sm text-ink-muted">
+          <DiskUsage bytes={totalDiskBytes(db)} /> · <PresenceBar me={user.authentikUsername} /> ·
+          signed in as {user.displayName ?? user.authentikUsername}
+        </p>
+      </header>
 
       <FilterChips filters={filters} />
 

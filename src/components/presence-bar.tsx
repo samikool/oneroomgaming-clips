@@ -19,8 +19,8 @@ export function PresenceBar({ me }: { me: string }) {
   const others = online.filter((name) => name !== me);
 
   return (
-    <p className="text-sm text-ink-muted">
+    <span>
       {others.length === 0 ? "You're the only one here" : `Here now: ${others.join(", ")}`}
-    </p>
+    </span>
   );
 }
