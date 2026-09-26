@@ -1,10 +1,21 @@
 @import "tailwindcss";
 
 @theme {
-  --color-surface: #0b0d10;
-  --color-surface-raised: #14181d;
-  --color-ink: #e6e9ee;
+  /* One Room Gaming palette, sampled from the logo. Nothing outside this block
+     writes a colour literal. */
+  --color-surface: #14161b;
+  --color-surface-raised: #1c1f26;
+  --color-surface-sunken: #0e1014;
+  --color-line: #2a2f3a;
+  --color-line-strong: #3a4150;
+  --color-ink: #eef1f5;
   --color-ink-muted: #9aa4b2;
+  --color-brand: #1ec8e8;
+  --color-accent: #ffc21a;
+  --color-danger: #dc2626;
+
+  --font-display: var(--font-pixelify), ui-sans-serif, system-ui, sans-serif;
+  --font-pixel: var(--font-silkscreen), ui-monospace, monospace;
 }
 
 body {
@@ -12,48 +23,58 @@ body {
   color: var(--color-ink);
 }
 
-:focus-visible { outline: 2px solid #93c5fd; outline-offset: 4px; }
-.button-primary, .button-secondary {
+h1, h2 { font-family: var(--font-display); }
+
+:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 4px; }
+/* Buttons sit on a hard, blurless shadow and press down into it: the pixel
+   look without pixel-art assets. */
+.button-primary, .button-secondary, .button-danger {
   display: inline-flex; align-items: center; justify-content: center;
-  min-height: 44px; border-radius: 6px; padding: 10px 16px;
+  min-height: 44px; border-radius: 4px; padding: 10px 16px;
   font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none;
+  border: 1px solid transparent;
+  transition: transform 80ms ease, box-shadow 80ms ease, background-color 120ms ease, border-color 120ms ease;
 }
-.button-primary { background: #93c5fd; color: #102039; }
-.button-primary:hover:not(:disabled) { background: #bfdbfe; }
+.button-primary, .button-danger { box-shadow: 3px 3px 0 var(--color-surface-sunken); }
+.button-primary:active:not(:disabled), .button-danger:active:not(:disabled) {
+  transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--color-surface-sunken);
+}
+.button-primary { background: var(--color-brand); color: var(--color-surface); }
+.button-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-brand) 75%, white); }
 .button-primary:disabled { opacity: 0.6; cursor: progress; }
-.button-secondary { background: #222b36; color: #e6e9ee; }
-.button-secondary:hover { background: #303b48; }
-.drop-area { border: 1px dashed #56677b; border-radius: 12px; padding: 40px 24px; text-align: center; background: #14181d; }
-.drop-active { border-color: #93c5fd; background: #1b293b; }
-.upload-row { display: flex; gap: 24px; border-top: 1px solid #303b48; padding-top: 24px; }
-.title-input { width: 100%; border: 1px solid #56677b; border-radius: 4px; padding: 10px 12px; background: #14181d; }
-.title-input:disabled { color: #9aa4b2; border-color: #303b48; }
-.upload-progress { display: block; appearance: none; width: 100%; height: 6px; margin-top: 12px; border: 0; border-radius: 3px; overflow: hidden; background: #222b36; color: #93c5fd; }
-.upload-progress::-webkit-progress-bar { background: #222b36; }
-.upload-progress::-webkit-progress-value { background: #93c5fd; }
-.upload-progress::-moz-progress-bar { background: #93c5fd; }
+.button-secondary { background: transparent; color: var(--color-ink); border-color: var(--color-line-strong); }
+.button-secondary:hover { border-color: var(--color-brand); color: var(--color-brand); }
+.drop-area { border: 1px dashed var(--color-line-strong); border-radius: 12px; padding: 40px 24px; text-align: center; background: var(--color-surface-raised); }
+.drop-active { border-color: var(--color-brand); background: color-mix(in srgb, var(--color-brand) 12%, var(--color-surface)); }
+.upload-row { display: flex; gap: 24px; border-top: 1px solid var(--color-line); padding-top: 24px; }
+.title-input { width: 100%; border: 1px solid var(--color-line-strong); border-radius: 4px; padding: 10px 12px; background: var(--color-surface-raised); }
+.title-input:disabled { color: var(--color-ink-muted); border-color: var(--color-line); }
+.upload-progress { display: block; appearance: none; width: 100%; height: 6px; margin-top: 12px; border: 0; border-radius: 3px; overflow: hidden; background: var(--color-line); color: var(--color-brand); }
+.upload-progress::-webkit-progress-bar { background: var(--color-line); }
+.upload-progress::-webkit-progress-value { background: var(--color-brand); }
+.upload-progress::-moz-progress-bar { background: var(--color-brand); }
 @media (max-width: 640px) { .upload-row { flex-direction: column; gap: 12px; } }
 .dock {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
   display: flex; align-items: center; gap: 16px;
   padding: 10px 16px;
-  background: #14181d; border-top: 1px solid #303b48;
+  background: var(--color-surface-raised); border-top: 1px solid var(--color-line);
 }
-.dock-idle { padding: 6px 16px; background: transparent; border-top-color: #222b36; }
+.dock-idle { padding: 6px 16px; background: transparent; border-top-color: var(--color-line); }
 .dock-dismiss {
   min-width: 32px; min-height: 32px; border-radius: 6px;
-  background: transparent; color: #9aa4b2; font-size: 18px; cursor: pointer;
+  background: transparent; color: var(--color-ink-muted); font-size: 18px; cursor: pointer;
 }
-.dock-dismiss:hover { background: #222b36; color: #e6e9ee; }
+.dock-dismiss:hover { background: var(--color-line); color: var(--color-ink); }
 .dock-badge {
   display: inline-flex; align-items: center; gap: 6px;
   min-height: 32px; padding: 4px 10px; border-radius: 999px;
-  background: #222b36; color: #e6e9ee; font-size: 13px; cursor: pointer;
+  background: var(--color-line); color: var(--color-ink); font-size: 13px; cursor: pointer;
 }
 .dock-badge-pulse { animation: dock-pulse 1.2s ease-out 1; }
 @keyframes dock-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(147, 197, 253, 0.6); }
-  100% { box-shadow: 0 0 0 12px rgba(147, 197, 253, 0); }
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-brand) 60%, transparent); }
+  100% { box-shadow: 0 0 0 12px transparent; }
 }
 /* A pulsing element pinned to every page is precisely what this preference
    exists for. */
@@ -65,22 +86,23 @@ body {
 .theater-stage { position: relative; }
 .theater-tab {
   flex: 1; min-height: 40px; padding: 8px 12px;
-  background: transparent; color: #9aa4b2; font-size: 13px; cursor: pointer;
+  background: transparent; color: var(--color-ink-muted); font-size: 13px; cursor: pointer;
 }
-.theater-tab:hover { color: #e6e9ee; }
-.theater-tab-active { color: #e6e9ee; box-shadow: inset 0 -2px 0 #93c5fd; }
+.theater-tab:hover { color: var(--color-ink); }
+.theater-tab-active { color: var(--color-ink); box-shadow: inset 0 -2px 0 var(--color-brand); }
 .chip-button {
   display: inline-flex; align-items: center;
-  min-height: 32px; padding: 4px 10px; border-radius: 6px;
-  background: #222b36; color: #e6e9ee; font-size: 12px; cursor: pointer;
+  min-height: 32px; padding: 4px 10px; border-radius: 4px;
+  background: var(--color-surface-raised); border: 1px solid var(--color-line);
+  color: var(--color-ink); font-size: 12px; cursor: pointer; text-decoration: none;
 }
-.chip-button:hover { background: #303b48; }
+.chip-button:hover { border-color: var(--color-brand); }
 .theater-transport {
   display: flex; align-items: center; gap: 12px;
   margin-top: 12px; padding: 8px 12px;
-  border-radius: 8px; background: #14181d;
+  border-radius: 8px; background: var(--color-surface-raised);
 }
-.theater-scrubber { flex: 1; min-width: 0; accent-color: #93c5fd; }
+.theater-scrubber { flex: 1; min-width: 0; accent-color: var(--color-brand); }
 /* Visibly disabled, but still clickable — the click is the request. */
 [data-disabled] { opacity: 0.5; cursor: not-allowed; }
 .theater-requests {
@@ -90,11 +112,11 @@ body {
 .theater-request {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 12px; border-radius: 8px;
-  background: #222b36; border: 1px solid #303b48;
+  background: var(--color-line); border: 1px solid var(--color-line);
 }
 .theater-stage-full {
   display: flex; align-items: center; justify-content: center;
-  width: 100vw; height: 100vh; background: #000;
+  width: 100vw; height: 100vh; background: black;
 }
 .theater-stage-full video { max-height: 100vh; width: auto; border-radius: 0; }
 .theater-overlay {
@@ -107,7 +129,7 @@ body {
 .theater-overlay-panel {
   pointer-events: auto;
   width: 280px; max-height: 60vh; overflow-y: auto;
-  border-radius: 8px; background: rgba(20, 24, 29, 0.85);
+  border-radius: 8px; background: color-mix(in srgb, var(--color-surface-raised) 85%, transparent);
   backdrop-filter: blur(4px);
 }
 @media (prefers-reduced-motion: reduce) {
@@ -120,14 +142,14 @@ body {
   padding: 16px; margin: 0; list-style: none;
 }
 .theater-chat-compact .theater-chat-list { max-height: 30vh; }
-.theater-chat-form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #303b48; }
+.theater-chat-form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--color-line); }
 .theater-chat-form .title-input { min-width: 0; }
 .reaction-bar { display: flex; gap: 6px; margin-top: 8px; }
 .reaction-button {
   min-width: 40px; min-height: 40px; border-radius: 8px;
-  background: #222b36; font-size: 18px; cursor: pointer; line-height: 1;
+  background: var(--color-line); font-size: 18px; cursor: pointer; line-height: 1;
 }
-.reaction-button:hover { background: #303b48; }
+.reaction-button:hover { background: var(--color-line-strong); }
 /* Sits on top of the player, so it must never intercept a click meant for it. */
 .reaction-stream { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 5; }
 .reaction-float {
@@ -146,52 +168,109 @@ body {
 .comment-form { display: flex; gap: 8px; }
 .comment-form .title-input { min-width: 0; }
 .comment-list { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
-.comment { position: relative; border-left: 2px solid #303b48; padding-left: 12px; }
+.comment { position: relative; border-left: 2px solid var(--color-line); padding-left: 12px; }
 .comment-delete {
   position: absolute; top: 0; right: 0;
-  background: transparent; color: #9aa4b2; font-size: 11px; cursor: pointer;
+  background: transparent; color: var(--color-ink-muted); font-size: 11px; cursor: pointer;
 }
-.comment-delete:hover { color: #e6e9ee; }
+.comment-delete:hover { color: var(--color-ink); }
 .metadata-panel { display: flex; flex-direction: column; gap: 12px; }
 .metadata-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .metadata-form { display: flex; flex-direction: column; gap: 4px; }
-.metadata-label { font-size: 12px; color: #9aa4b2; }
+.metadata-label { font-size: 12px; color: var(--color-ink-muted); }
 .metadata-row { display: flex; gap: 8px; }
 .metadata-row .title-input { min-width: 0; }
 .filter-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .filter-chip {
   display: inline-flex; align-items: center; gap: 4px;
-  min-height: 32px; padding: 4px 10px; border-radius: 999px;
-  background: #1b293b; color: #e6e9ee; font-size: 12px; text-decoration: none;
+  min-height: 32px; padding: 4px 10px; border-radius: 4px;
+  background: color-mix(in srgb, var(--color-brand) 12%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-brand) 45%, transparent);
+  color: var(--color-ink); font-size: 12px; text-decoration: none;
 }
-.filter-chip:hover { background: #24384f; }
+.filter-chip:hover { border-color: var(--color-brand); }
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
-.button-danger {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-height: 44px; border-radius: 6px; padding: 10px 16px;
-  font-size: 14px; font-weight: 600; cursor: pointer;
-  background: #b91c1c; color: #fee2e2;
-}
-.button-danger:hover { background: #dc2626; }
+.button-danger { background: var(--color-danger); color: var(--color-ink); }
+.button-danger:hover { background: color-mix(in srgb, var(--color-danger) 85%, white); }
 .button-danger:disabled { opacity: 0.6; cursor: progress; }
-/* The selection toolbar. Sits above the dock, which is z-40 and 0-bottom. */
+/* The selection toolbar floats, centred, clear of the dock (z-40, pinned to
+   the bottom, ~64px tall when a room is open). */
 .select-bar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
+  position: fixed; left: 50%; bottom: 80px; z-index: 45;
+  transform: translateX(-50%);
+  width: max-content; max-width: calc(100vw - 32px);
   display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
-  padding: 12px 16px;
-  background: #14181d; border-top: 1px solid #303b48;
+  padding: 10px 14px; border-radius: 6px;
+  background: var(--color-surface-raised); border: 1px solid var(--color-brand);
+  box-shadow: 4px 4px 0 var(--color-surface-sunken);
 }
+.select-bar-clear {
+  min-width: 32px; min-height: 32px; border-radius: 4px;
+  background: transparent; color: var(--color-ink-muted); font-size: 16px; cursor: pointer;
+}
+.select-bar-clear:hover { color: var(--color-ink); background: var(--color-line); }
 .clip-check {
   position: absolute; top: 8px; left: 8px; z-index: 2;
   width: 22px; height: 22px; border-radius: 999px;
-  border: 2px solid #e6e9ee; background: rgba(11, 13, 16, 0.55);
+  border: 2px solid var(--color-ink); background: color-mix(in srgb, var(--color-surface-sunken) 55%, transparent);
 }
-.clip-check-on { background: #93c5fd; border-color: #93c5fd; }
+.clip-check-on { background: var(--color-accent); border-color: var(--color-accent); }
 .clip-check-on::after {
   content: ""; position: absolute; left: 6px; top: 2px;
-  width: 5px; height: 10px; border: solid #102039;
+  width: 5px; height: 10px; border: solid var(--color-surface);
   border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+/* Site header. */
+.site-header { background: var(--color-surface-raised); border-bottom: 1px solid var(--color-line); }
+.nav-link {
+  display: inline-flex; align-items: center; min-height: 40px;
+  font-family: var(--font-display); font-size: 16px;
+  color: var(--color-ink-muted); text-decoration: none;
+}
+.nav-link:hover { color: var(--color-ink); }
+.nav-link-active { color: var(--color-brand); box-shadow: inset 0 -2px 0 var(--color-brand); }
+.nav-link-active:hover { color: var(--color-brand); }
+/* Clip cards. A card being pointed at pops straight out of the grid — it
+   grows from its centre inside a crisp cyan ring and an even glow — and its
+   thumbnail zooms a touch inside the frame. Selected cards take the same ring
+   in yellow, hovered or not. */
+.clip-tile {
+  position: relative; overflow: hidden; border-radius: 4px;
+  background: var(--color-surface-raised); border: 1px solid var(--color-line);
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out, border-color 150ms ease-out;
+}
+.clip-tile img { transition: transform 250ms ease-out; }
+a:hover > .clip-tile, a:focus-visible > .clip-tile,
+button:hover .clip-tile, button:focus-visible .clip-tile {
+  z-index: 1; border-color: var(--color-brand);
+  box-shadow: 0 0 0 2px var(--color-brand),
+    0 0 24px 2px color-mix(in srgb, var(--color-brand) 40%, transparent);
+  transform: scale(1.05);
+}
+a:hover > .clip-tile img, a:focus-visible > .clip-tile img,
+button:hover .clip-tile img, button:focus-visible .clip-tile img { transform: scale(1.06); }
+.clip-selected .clip-tile {
+  border-color: var(--color-accent); box-shadow: 0 0 0 2px var(--color-accent);
+}
+.clip-selected:hover .clip-tile, .clip-selected:focus-visible .clip-tile {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent),
+    0 0 24px 2px color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+.meta-chip {
+  display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 4px;
+  border: 1px solid var(--color-line); color: var(--color-ink-muted); text-decoration: none;
+}
+.meta-chip:hover { border-color: var(--color-brand); color: var(--color-brand); }
+@media (prefers-reduced-motion: reduce) {
+  .button-primary, .button-secondary, .button-danger, .clip-tile { transition: none; }
+  .clip-tile img { transition: none; }
+  .button-primary:active:not(:disabled), .button-danger:active:not(:disabled),
+  a:hover > .clip-tile, a:focus-visible > .clip-tile,
+  button:hover .clip-tile, button:focus-visible .clip-tile,
+  a:hover > .clip-tile img, a:focus-visible > .clip-tile img,
+  button:hover .clip-tile img, button:focus-visible .clip-tile img { transform: none; }
 }

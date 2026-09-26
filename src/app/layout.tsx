@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { display, pixel } from "./fonts";
 import { AppShell } from "@/components/app-shell";
 import { ChangelogModal } from "@/components/changelog-modal";
 import { formatEntryDate, getChangelogEntries } from "@/lib/changelog";
@@ -17,9 +18,9 @@ export default async function RootLayout({
   const user = await requireUser();
 
   return (
-    <html lang="en">
+    <html lang="en" className={`${display.variable} ${pixel.variable}`}>
       <body className="min-h-screen antialiased">
-        <AppShell me={user.authentikUsername}>{children}</AppShell>
+        <AppShell me={user.authentikUsername} name={user.displayName ?? user.authentikUsername}>{children}</AppShell>
         {latest && (
           <ChangelogModal
             version={latest.version}

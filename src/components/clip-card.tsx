@@ -47,8 +47,8 @@ export function ClipCard({
   const label = statusLabel(clip.status);
 
   const tile = (
-    <div className="overflow-hidden rounded-lg bg-surface-raised">
-      <div className="relative flex aspect-video items-center justify-center bg-black/40">
+    <div className="clip-tile">
+      <div className="relative flex aspect-video items-center justify-center bg-surface-sunken">
         {clip.thumbPath ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={clip.thumbPath} alt="" className="h-full w-full object-cover" />
@@ -56,7 +56,7 @@ export function ClipCard({
           <span className="text-sm text-ink-muted">{label ?? "No preview"}</span>
         )}
         {clip.status === "ready" && (
-          <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-xs text-ink">
+          <span className="absolute bottom-1 right-1 rounded-sm bg-surface-sunken/80 px-1 font-pixel text-[10px] text-ink">
             {formatDuration(clip.durationMs)}
           </span>
         )}
@@ -72,14 +72,14 @@ export function ClipCard({
   // and nesting one inside it is invalid HTML that browsers resolve
   // unpredictably.
   const footer = (clip.uploader || clip.game) && (
-    <p className="mt-1 flex flex-wrap gap-2 text-xs text-ink-muted">
+    <p className="mt-2 flex flex-wrap gap-1.5 text-xs">
       {clip.uploader && (
-        <Link className="hover:text-ink" href={withFilter({}, "uploader", clip.uploader)}>
+        <Link className="meta-chip" href={withFilter({}, "uploader", clip.uploader)}>
           {clip.uploader}
         </Link>
       )}
       {clip.game && (
-        <Link className="hover:text-ink" href={withFilter({}, "game", clip.game.slug)}>
+        <Link className="meta-chip" href={withFilter({}, "game", clip.game.slug)}>
           {clip.game.name}
         </Link>
       )}
@@ -96,7 +96,7 @@ export function ClipCard({
           type="button"
           aria-pressed={selected}
           onClick={() => onToggle?.(clip.id)}
-          className="relative block w-full cursor-pointer text-left"
+          className={`relative block w-full cursor-pointer text-left${selected ? " clip-selected" : ""}`}
         >
           <span
             aria-hidden="true"
