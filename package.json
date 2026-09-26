@@ -1,6 +1,6 @@
 {
   "name": "clips",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "bun --bun next dev -H 0.0.0.0",
