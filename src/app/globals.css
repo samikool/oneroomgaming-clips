@@ -228,7 +228,16 @@ h1, h2 { font-family: var(--font-display); }
   color: var(--color-ink-muted); text-decoration: none;
 }
 .nav-link:hover { color: var(--color-ink); }
-.nav-link-active { color: var(--color-brand); box-shadow: inset 0 -2px 0 var(--color-brand); }
+.nav-link-active { color: var(--color-brand); }
+/* Until SiteHeader has measured and placed the gliding bar (before
+   hydration), the active tab draws its own underline. */
+nav:not([data-underline]) .nav-link-active { box-shadow: inset 0 -2px 0 var(--color-brand); }
+/* One underline for the whole nav, moved under the active tab by SiteHeader
+   so it can glide between tabs instead of jumping. */
+.nav-underline {
+  position: absolute; top: 0; left: 0; width: 0; height: 2px;
+  background: var(--color-brand); pointer-events: none;
+}
 .nav-link-active:hover { color: var(--color-brand); }
 /* Clip cards. A card being pointed at pops straight out of the grid — it
    grows from its centre inside a crisp cyan ring and an even glow — and its

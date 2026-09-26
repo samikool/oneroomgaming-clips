@@ -13,11 +13,11 @@ import {
 import { navIndex, tabsBetween } from "@/lib/nav";
 
 /** Time for the strip to move one screen: one panel passing by. */
-const PANEL_MS = 160;
+export const PANEL_MS = 160;
 /** Give up and show the page if navigation has not landed by then. */
 const SAFETY_MS = 5_000;
 /** Soft landing for the last panel, so the new page settles rather than stops. */
-const SETTLE = "cubic-bezier(0.16, 1, 0.3, 1)";
+export const SETTLE = "cubic-bezier(0.16, 1, 0.3, 1)";
 
 type Run = {
   id: number;

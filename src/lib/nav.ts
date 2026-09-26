@@ -37,3 +37,58 @@ export function tabsBetween(from: number, to: number): string[] {
 
   return labels;
 }
+
+/** Where the underline bar sits, relative to the nav. */
+export type BarBox = { x: number; y: number; width: number };
+
+/** Thickness of the active tab's underline. */
+export const UNDERLINE_PX = 2;
+
+/**
+ * The underline for a link, from its offsets within the nav. The top counts
+ * too: on a phone the links wrap onto a second row.
+ */
+export function underlineBox(link: {
+  offsetLeft: number;
+  offsetTop: number;
+  offsetWidth: number;
+  offsetHeight: number;
+}): BarBox {
+  return {
+    x: link.offsetLeft,
+    y: link.offsetTop + link.offsetHeight - UNDERLINE_PX,
+    width: link.offsetWidth,
+  };
+}
+
+/** Inline style that puts the underline bar on a box. */
+export function barStyle({ x, y, width }: BarBox) {
+  return { transform: `translate(${x}px, ${y}px)`, width: `${width}px` };
+}
+
+/** Tab positions the underline passes on its way, ending on the target. */
+export function glideStops(from: number, to: number): number[] {
+  const step = to > from ? 1 : -1;
+  const stops: number[] = [];
+
+  for (let i = from + step; i !== to + step; i += step) {
+    stops.push(i);
+  }
+
+  return stops;
+}
+
+/**
+ * Keyframes for the underline through a list of boxes, the first being where
+ * it is now. Mirrors the page slide's strip: one even stretch per tab, linear,
+ * with the last stretch settling so the bar lands with the page.
+ */
+export function glideFrames(boxes: BarBox[], settle: string) {
+  const stretches = boxes.length - 1;
+
+  return boxes.map((box, i) => ({
+    ...barStyle(box),
+    offset: i / stretches,
+    ...(i < stretches && { easing: i === stretches - 1 ? settle : "linear" }),
+  }));
+}
