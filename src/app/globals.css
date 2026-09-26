@@ -314,15 +314,22 @@ button:hover .clip-tile img, button:focus-visible .clip-tile img { transform: sc
 }
 .queue-entry:first-child { border-color: color-mix(in srgb, var(--color-accent) 60%, transparent); }
 /* Host only: three dots along the top edge say "you can drag this". */
-.queue-entry-draggable { position: relative; padding-top: 12px; cursor: grab; }
-.queue-entry-draggable:active { cursor: grabbing; }
+.queue-entry-draggable { position: relative; padding-top: 12px; }
+/* The grip is the only place a drag starts, so the rest of the row still
+   scrolls on touch. Its box is a finger-sized target reaching up into the
+   gap above the row; the dots themselves sit where they always have. */
 .queue-grip {
-  position: absolute; top: 3px; left: 50%; transform: translateX(-50%);
+  position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
+  width: 56px; height: 36px; touch-action: none; cursor: grab;
+}
+.queue-grip:active { cursor: grabbing; }
+.queue-grip::before {
+  content: ""; position: absolute; top: 11px; left: 50%; transform: translateX(-50%);
   width: 18px; height: 4px;
   background-image: radial-gradient(circle, var(--color-ink-muted) 1.2px, transparent 1.6px);
   background-size: 6px 4px;
 }
-.queue-entry-draggable:hover .queue-grip {
+.queue-entry-draggable:hover .queue-grip::before {
   background-image: radial-gradient(circle, var(--color-brand) 1.2px, transparent 1.6px);
 }
 .queue-entry-dragging { opacity: 0.4; }
