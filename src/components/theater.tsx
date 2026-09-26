@@ -234,7 +234,9 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
 
         <div
           ref={stageRef}
-          className={`theater-stage min-w-0 flex-1 ${isFullscreen ? "theater-stage-full" : ""}`}
+          className={`theater-stage min-w-0 flex-1 ${isFullscreen ? "theater-stage-full" : ""}${
+            isFullscreen && !overlayVisible ? " theater-idle" : ""
+          }`}
         >
           {state.clipId === null ? (
             <div className="flex aspect-video items-center justify-center rounded bg-surface-sunken">
@@ -258,37 +260,45 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
                 controls={false}
               />
               <ReactionStream reactions={reactions} />
-              <TheaterTransport
-                state={state}
-                clock={clock}
-                canControl={iAmHost}
-                onPlay={() => send({ t: "room.control", action: "play" })}
-                onPause={() => send({ t: "room.control", action: "pause" })}
-                onSeek={(positionMs) => send({ t: "room.control", action: "seek", positionMs })}
-                onRequestControl={() => send({ t: "room.requestControl" })}
+              {/* In fullscreen these float over the bottom of the video and fade
+                  with the overlay; windowed, they sit under it as normal. */}
+              <div
+                className={`theater-controls${
+                  isFullscreen && !overlayVisible ? " theater-controls-hidden" : ""
+                }`}
               >
-                <VolumeControl volume={volume} onChange={setVolume} />
-              </TheaterTransport>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <ReactionBar onReact={react} />
-                <button
-                  type="button"
-                  className="button-secondary ml-auto"
-                  onClick={() => void toggleFullscreen()}
+                <TheaterTransport
+                  state={state}
+                  clock={clock}
+                  canControl={iAmHost}
+                  onPlay={() => send({ t: "room.control", action: "play" })}
+                  onPause={() => send({ t: "room.control", action: "pause" })}
+                  onSeek={(positionMs) => send({ t: "room.control", action: "seek", positionMs })}
+                  onRequestControl={() => send({ t: "room.requestControl" })}
                 >
-                  {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-                </button>
+                  <VolumeControl volume={volume} onChange={setVolume} />
+                </TheaterTransport>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <ReactionBar onReact={react} />
+                  <button
+                    type="button"
+                    className="button-secondary ml-auto"
+                    onClick={() => void toggleFullscreen()}
+                  >
+                    {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                  </button>
+                </div>
+                {needsGesture && (
+                  <button type="button" className="button-primary mt-4" onClick={tapToSync}>
+                    Tap to sync
+                  </button>
+                )}
+                {resynced && (
+                  <p role="status" className="mt-2 text-xs text-ink-muted">
+                    Resynced — you had fallen behind the room.
+                  </p>
+                )}
               </div>
-              {needsGesture && (
-                <button type="button" className="button-primary mt-4" onClick={tapToSync}>
-                  Tap to sync
-                </button>
-              )}
-              {resynced && (
-                <p role="status" className="mt-2 text-xs text-ink-muted">
-                  Resynced — you had fallen behind the room.
-                </p>
-              )}
             </>
           )}
 
