@@ -467,7 +467,7 @@ button:hover .clip-tile img, button:focus-visible .clip-tile img { transform: sc
 /* Filmstrip between header tabs (see page-slide.tsx). The overlay covers the
    page area under the header and above nothing else: the activity bar stays
    on top. */
-.page-slide { overflow-x: clip; }
+.page-slide, .page-slide-frame { overflow-x: clip; }
 .slide-overlay {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
   overflow: hidden; pointer-events: none;
