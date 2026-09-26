@@ -3,17 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PresenceBar } from "@/components/presence-bar";
-import { isActiveNav } from "@/lib/nav";
-
-const LINKS = [
-  { href: "/", label: "Clips" },
-  { href: "/theater", label: "Theater" },
-  { href: "/upload", label: "Upload" },
-  { href: "/changelog", label: "Changelog" },
-];
+import { isActiveNav, NAV_LINKS } from "@/lib/nav";
+import { useSlide } from "./page-slide";
 
 export function SiteHeader({ me, name }: { me: string; name: string }) {
   const pathname = usePathname();
+  const slide = useSlide();
 
   return (
     <header className="site-header">
@@ -25,7 +20,7 @@ export function SiteHeader({ me, name }: { me: string; name: string }) {
         {/* Wraps to its own row on a phone rather than hiding behind a menu:
             there are only four links. */}
         <nav aria-label="Main" className="flex flex-wrap gap-x-4">
-          {LINKS.map(({ href, label }) => {
+          {NAV_LINKS.map(({ href, label }) => {
             const active = isActiveNav(pathname, href);
 
             return (
@@ -34,6 +29,14 @@ export function SiteHeader({ me, name }: { me: string; name: string }) {
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={`nav-link${active ? " nav-link-active" : ""}`}
+                onClick={(event) => {
+                  // A new tab or window is not this page moving; no slide.
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+                    return;
+                  }
+
+                  slide?.start(href);
+                }}
               >
                 {label}
               </Link>

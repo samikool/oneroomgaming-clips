@@ -46,41 +46,17 @@ h1, h2 { font-family: var(--font-display); }
 .button-secondary:hover { border-color: var(--color-brand); color: var(--color-brand); }
 .drop-area { border: 1px dashed var(--color-line-strong); border-radius: 12px; padding: 40px 24px; text-align: center; background: var(--color-surface-raised); }
 .drop-active { border-color: var(--color-brand); background: color-mix(in srgb, var(--color-brand) 12%, var(--color-surface)); }
-.upload-row { display: flex; gap: 24px; border-top: 1px solid var(--color-line); padding-top: 24px; }
 .title-input { width: 100%; border: 1px solid var(--color-line-strong); border-radius: 4px; padding: 10px 12px; background: var(--color-surface-raised); }
 .title-input:disabled { color: var(--color-ink-muted); border-color: var(--color-line); }
 .upload-progress { display: block; appearance: none; width: 100%; height: 6px; margin-top: 12px; border: 0; border-radius: 3px; overflow: hidden; background: var(--color-line); color: var(--color-brand); }
 .upload-progress::-webkit-progress-bar { background: var(--color-line); }
 .upload-progress::-webkit-progress-value { background: var(--color-brand); }
 .upload-progress::-moz-progress-bar { background: var(--color-brand); }
-@media (max-width: 640px) { .upload-row { flex-direction: column; gap: 12px; } }
-.dock {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
-  display: flex; align-items: center; gap: 16px;
-  padding: 10px 16px;
-  background: var(--color-surface-raised); border-top: 1px solid var(--color-line);
-}
-.dock-idle { padding: 6px 16px; background: transparent; border-top-color: var(--color-line); }
 .dock-dismiss {
   min-width: 32px; min-height: 32px; border-radius: 6px;
   background: transparent; color: var(--color-ink-muted); font-size: 18px; cursor: pointer;
 }
 .dock-dismiss:hover { background: var(--color-line); color: var(--color-ink); }
-.dock-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  min-height: 32px; padding: 4px 10px; border-radius: 999px;
-  background: var(--color-line); color: var(--color-ink); font-size: 13px; cursor: pointer;
-}
-.dock-badge-pulse { animation: dock-pulse 1.2s ease-out 1; }
-@keyframes dock-pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-brand) 60%, transparent); }
-  100% { box-shadow: 0 0 0 12px transparent; }
-}
-/* A pulsing element pinned to every page is precisely what this preference
-   exists for. */
-@media (prefers-reduced-motion: reduce) {
-  .dock-badge-pulse { animation: none; }
-}
 /* Makes the absolutely-positioned fullscreen overlay land on the video rather
    than on the document. */
 .theater-stage { position: relative; }
@@ -196,8 +172,8 @@ h1, h2 { font-family: var(--font-display); }
 .button-danger { background: var(--color-danger); color: var(--color-ink); }
 .button-danger:hover { background: color-mix(in srgb, var(--color-danger) 85%, white); }
 .button-danger:disabled { opacity: 0.6; cursor: progress; }
-/* The selection toolbar floats, centred, clear of the dock (z-40, pinned to
-   the bottom, ~64px tall when a room is open). */
+/* The selection toolbar floats, centred, clear of the activity bar (z-40, pinned to
+   the bottom, ~48px tall). */
 .select-bar {
   position: fixed; left: 50%; bottom: 80px; z-index: 45;
   transform: translateX(-50%);
@@ -386,4 +362,94 @@ button:hover .clip-tile img, button:focus-visible .clip-tile img { transform: sc
   .theater-card-actions { transition: none; }
   .theater-card:hover .clip-tile, .theater-card:focus-within .clip-tile,
   .theater-card:hover .clip-tile img, .theater-card:focus-within .clip-tile img { transform: none; }
+}
+/* Activity bar: pinned to the bottom of every page, one pill per activity. */
+.activity-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: flex; align-items: center; gap: 12px;
+  min-height: 48px; padding: 8px 16px;
+  background: var(--color-surface-raised); border-top: 1px solid var(--color-line);
+}
+.pill {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%;
+  min-height: 32px; padding: 4px 12px; border-radius: 4px;
+  background: var(--color-surface); border: 1px solid var(--color-line);
+  color: var(--color-ink); font-size: 13px; cursor: pointer;
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.pill:hover, .pill-open { border-color: var(--color-brand); }
+.pill-open { box-shadow: 0 0 0 1px var(--color-brand); }
+.pill-live { border-color: color-mix(in srgb, var(--color-brand) 50%, transparent); }
+.pill-done { border-color: var(--color-accent); color: var(--color-accent); }
+/* A tray slides up from the bar, under the pill that opened it. */
+.tray {
+  position: fixed; bottom: 56px; z-index: 41;
+  display: flex; flex-direction: column;
+  width: min(380px, calc(100vw - 32px)); max-height: min(60vh, 520px);
+  background: var(--color-surface-raised); border: 1px solid var(--color-brand); border-radius: 6px;
+  box-shadow: 4px 4px 0 var(--color-surface-sunken);
+  animation: tray-up 140ms ease-out;
+}
+.tray-left { left: 16px; }
+.tray-right { right: 16px; }
+@keyframes tray-up { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+.tray-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 4px 4px 12px; border-bottom: 1px solid var(--color-line);
+}
+.tray-body { flex: 1; min-height: 0; overflow-y: auto; }
+.tray-foot { padding: 10px 12px; border-top: 1px solid var(--color-line); }
+/* Spinner: a square whose cyan edge steps round, pixel-fashion. */
+.spinner {
+  display: inline-block; flex-shrink: 0; width: 12px; height: 12px;
+  border: 3px solid var(--color-line-strong); border-top-color: var(--color-brand);
+  animation: spinner-step 0.8s steps(4) infinite;
+}
+@keyframes spinner-step { to { transform: rotate(360deg); } }
+/* Upload rows, shared by the upload page and the tray. */
+.upload-list { display: flex; flex-direction: column; gap: 8px; }
+.upload-list-compact { gap: 0; }
+.upload-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  background: var(--color-surface-raised); border: 1px solid var(--color-line); border-radius: 4px;
+}
+.upload-list-compact .upload-item { border: 0; border-bottom: 1px solid var(--color-line); border-radius: 0; background: transparent; }
+.upload-item-uploading { border-color: color-mix(in srgb, var(--color-brand) 55%, transparent); }
+.upload-item-ready { border-color: color-mix(in srgb, var(--color-accent) 45%, transparent); }
+.upload-status { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 12px; color: var(--color-ink-muted); }
+.upload-status-bar .upload-progress { flex: 1; margin-top: 0; }
+.staged-item {
+  display: flex; align-items: flex-end; gap: 10px; padding: 10px 12px;
+  background: var(--color-surface-raised); border: 1px solid var(--color-line); border-radius: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tray, .pill { animation: none; transition: none; }
+  .spinner { animation: none; width: auto; height: auto; border: 0; }
+  .spinner::after { content: "…"; color: var(--color-brand); }
+}
+/* Filmstrip between header tabs (see page-slide.tsx). The overlay covers the
+   page area under the header and above nothing else: the activity bar stays
+   on top. */
+.page-slide { overflow-x: clip; }
+.slide-overlay {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  overflow: hidden; pointer-events: none;
+}
+.slide-strip { display: flex; height: 100%; will-change: transform; }
+/* Heading left: the old page stays at the right edge, the cards overflow off to
+   the left, and the strip moves right. */
+.slide-strip-reverse { flex-direction: row-reverse; }
+.slide-panel { flex: 0 0 100vw; height: 100%; overflow: hidden; }
+.slide-panel-old { background: var(--color-surface); }
+.slide-card {
+  display: flex; align-items: center; justify-content: center;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, color-mix(in srgb, var(--color-brand) 4%, transparent) 3px 4px),
+    var(--color-surface-sunken);
+  border-left: 2px solid var(--color-line); border-right: 2px solid var(--color-line);
+}
+.slide-card-label {
+  font-family: var(--font-display); font-size: clamp(40px, 9vw, 120px);
+  color: var(--color-brand); text-transform: uppercase; letter-spacing: 0.04em;
+  text-shadow: 4px 4px 0 var(--color-surface);
 }
