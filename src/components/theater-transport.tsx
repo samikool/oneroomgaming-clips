@@ -58,7 +58,8 @@ export function TheaterTransport({
     <div className="theater-transport">
       <button
         type="button"
-        className="button-secondary"
+        className="button-secondary transport-icon"
+        aria-label={state.paused ? "Play" : "Pause"}
         aria-disabled={disabled}
         data-disabled={disabled ? "" : undefined}
         onClick={() => {
@@ -74,7 +75,14 @@ export function TheaterTransport({
           }
         }}
       >
-        {state.paused ? "Play" : "Pause"}
+        {/* Drawn, not the ▶ character, which many systems render as an emoji. */}
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          {state.paused ? (
+            <path d="M4 2 L14 8 L4 14 Z" fill="currentColor" />
+          ) : (
+            <path d="M3 2h4v12H3zM9 2h4v12H9z" fill="currentColor" />
+          )}
+        </svg>
       </button>
       <input
         type="range"

@@ -282,10 +282,19 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
                   <ReactionBar onReact={react} />
                   <button
                     type="button"
-                    className="button-secondary ml-auto"
+                    className="button-secondary transport-icon ml-auto"
+                    aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                    title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
                     onClick={() => void toggleFullscreen()}
                   >
-                    {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                    {/* Corner brackets: pointing out to enter, in to leave. */}
+                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
+                      {isFullscreen ? (
+                        <path d="M6 1v5H1M10 1v5h5M6 15v-5H1M10 15v-5h5" />
+                      ) : (
+                        <path d="M1 6V1h5M15 6V1h-5M1 10v5h5M15 10v5h-5" />
+                      )}
+                    </svg>
                   </button>
                 </div>
                 {needsGesture && (
