@@ -17,6 +17,7 @@ function stateAt(rev: number, overrides: Partial<RoomState> = {}): RoomState {
     paused: false,
     positionMs: 1_000,
     anchorServerTime: 500,
+    queue: [],
     rev,
     ...overrides,
   };

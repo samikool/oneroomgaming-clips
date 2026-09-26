@@ -33,6 +33,21 @@ export type ClipSummary = {
  * `positionMs` is the playhead as of `anchorServerTime`, which the server
  * stamps with its own clock.
  */
+/**
+ * One clip waiting its turn. `entryId` is issued by `realtime` so the same clip
+ * queued twice can still be removed or moved one copy at a time. Title and
+ * duration come from whoever added it, for the same reason `setClip` carries
+ * them: `realtime` has no database. The thumbnail is not carried at all — each
+ * browser looks it up by `clipId`, so nobody can put a URL on everyone's page.
+ */
+export type QueueEntry = {
+  entryId: string;
+  clipId: string;
+  title: string;
+  durationMs: number | null;
+  addedBy: string;
+};
+
 export type RoomState = {
   clipId: string | null;
   clipTitle: string | null;
@@ -41,6 +56,8 @@ export type RoomState = {
   paused: boolean;
   positionMs: number;
   anchorServerTime: number;
+  /** Up next, in order. Never advances on its own: the host plays each one. */
+  queue: QueueEntry[];
   rev: number;
 };
 
@@ -91,8 +108,21 @@ export type ClientMessage =
       title?: string;
       durationMs?: number | null;
     }
+  | RoomQueueCommand
   | { t: "chat.send"; text: string }
   | { t: "reaction.send"; emoji: string };
+
+/**
+ * Edits to the queue. `add` is open to anyone in the room; everything else is
+ * the host's. `realtime` enforces both.
+ */
+export type RoomQueueCommand =
+  | { t: "room.queue"; op: "add"; clipId: string; title: string; durationMs: number | null }
+  | { t: "room.queue"; op: "remove" | "play"; entryId: string }
+  | { t: "room.queue"; op: "move"; entryId: string; delta: -1 | 1 }
+  /** Drag and drop: `toIndex` is where the entry ends up. */
+  | { t: "room.queue"; op: "moveTo"; entryId: string; toIndex: number }
+  | { t: "room.queue"; op: "clear" | "playNext" };
 
 /**
  * Which topics a message belongs to.
@@ -175,6 +205,53 @@ function parseRoomControl(message: Record<string, unknown>): ClientMessage | nul
   return { t: "room.control", action };
 }
 
+/** Titles are relayed to everyone in the room, so a runaway one is cut short. */
+const QUEUE_TITLE_MAX = 200;
+
+function nonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function parseRoomQueue(message: Record<string, unknown>): RoomQueueCommand | null {
+  switch (message.op) {
+    case "add":
+      return nonEmptyString(message.clipId)
+        ? {
+            t: "room.queue",
+            op: "add",
+            clipId: message.clipId,
+            title: typeof message.title === "string" ? message.title.slice(0, QUEUE_TITLE_MAX) : "",
+            durationMs: typeof message.durationMs === "number" ? message.durationMs : null,
+          }
+        : null;
+
+    case "remove":
+    case "play":
+      return nonEmptyString(message.entryId)
+        ? { t: "room.queue", op: message.op, entryId: message.entryId }
+        : null;
+
+    case "move":
+      return nonEmptyString(message.entryId) && (message.delta === -1 || message.delta === 1)
+        ? { t: "room.queue", op: "move", entryId: message.entryId, delta: message.delta }
+        : null;
+
+    case "moveTo":
+      return nonEmptyString(message.entryId) &&
+        Number.isInteger(message.toIndex) &&
+        (message.toIndex as number) >= 0
+        ? { t: "room.queue", op: "moveTo", entryId: message.entryId, toIndex: message.toIndex as number }
+        : null;
+
+    case "clear":
+    case "playNext":
+      return { t: "room.queue", op: message.op };
+
+    default:
+      return null;
+  }
+}
+
 export function parseClientMessage(raw: string): ClientMessage | null {
   let parsed: unknown;
 
@@ -219,6 +296,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
 
   if (message.t === "room.control") {
     return parseRoomControl(message);
+  }
+
+  if (message.t === "room.queue") {
+    return parseRoomQueue(message);
   }
 
   if (message.t === "chat.send") {

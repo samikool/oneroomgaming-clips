@@ -8,6 +8,7 @@ export const INITIAL_ROOM_STATE: RoomState = {
   paused: true,
   positionMs: 0,
   anchorServerTime: 0,
+  queue: [],
   rev: 0,
 };
 

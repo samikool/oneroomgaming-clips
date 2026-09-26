@@ -31,22 +31,15 @@ function statusLabel(status: string): string | undefined {
   return STATUS_LABEL[status as ClipStatus];
 }
 
-export type ClipCardSelection = {
-  /** Whether the grid is in selection mode at all. */
-  selectable?: boolean;
-  selected?: boolean;
-  onToggle?: (id: string) => void;
-};
-
-export function ClipCard({
-  clip,
-  selectable = false,
-  selected = false,
-  onToggle,
-}: { clip: ClipCardData } & ClipCardSelection) {
+/**
+ * The card's face — thumbnail, duration, title — with no behaviour. The grid
+ * wraps it in a link or a selection button; the theater wraps it with its own
+ * Queue and Play now actions. `overlay` sits over the thumbnail.
+ */
+export function ClipTile({ clip, overlay }: { clip: ClipCardData; overlay?: React.ReactNode }) {
   const label = statusLabel(clip.status);
 
-  const tile = (
+  return (
     <div className="clip-tile">
       <div className="relative flex aspect-video items-center justify-center bg-surface-sunken">
         {clip.thumbPath ? (
@@ -60,6 +53,7 @@ export function ClipCard({
             {formatDuration(clip.durationMs)}
           </span>
         )}
+        {overlay}
       </div>
       <div className="p-2">
         <p className="truncate text-sm text-ink">{clip.title}</p>
@@ -67,6 +61,22 @@ export function ClipCard({
       </div>
     </div>
   );
+}
+
+export type ClipCardSelection = {
+  /** Whether the grid is in selection mode at all. */
+  selectable?: boolean;
+  selected?: boolean;
+  onToggle?: (id: string) => void;
+};
+
+export function ClipCard({
+  clip,
+  selectable = false,
+  selected = false,
+  onToggle,
+}: { clip: ClipCardData } & ClipCardSelection) {
+  const tile = <ClipTile clip={clip} />;
 
   // The footer sits OUTSIDE the tile's link: the tile is already an anchor,
   // and nesting one inside it is invalid HTML that browsers resolve

@@ -177,6 +177,7 @@ describe("topicsFor — room messages", () => {
     paused: true,
     positionMs: 0,
     anchorServerTime: 0,
+    queue: [],
     rev: 0,
   };
 
@@ -265,5 +266,71 @@ describe("clip.removed", () => {
   // and never recovers on its own — the same reason clip lifecycle is kept.
   it("is never droppable under backpressure", () => {
     expect(isEphemeral({ t: "clip.removed", clipId: "01AAA" })).toBe(false);
+  });
+});
+
+describe("parseClientMessage — room.queue", () => {
+  const parse = (message: object) => parseClientMessage(JSON.stringify(message));
+
+  it("accepts an add, defaulting a missing duration to null", () => {
+    expect(parse({ t: "room.queue", op: "add", clipId: "01A", title: "ace" })).toEqual({
+      t: "room.queue",
+      op: "add",
+      clipId: "01A",
+      title: "ace",
+      durationMs: null,
+    });
+  });
+
+  it("rejects an add without a clip id", () => {
+    expect(parse({ t: "room.queue", op: "add", title: "ace" })).toBeNull();
+  });
+
+  it("caps an absurdly long title rather than relaying it to everyone", () => {
+    const parsed = parse({ t: "room.queue", op: "add", clipId: "01A", title: "x".repeat(5_000) });
+    expect(parsed?.t === "room.queue" && parsed.op === "add" ? parsed.title.length : -1).toBe(200);
+  });
+
+  it("accepts remove and play with an entry id", () => {
+    expect(parse({ t: "room.queue", op: "remove", entryId: "q1" })).toEqual({
+      t: "room.queue",
+      op: "remove",
+      entryId: "q1",
+    });
+    expect(parse({ t: "room.queue", op: "play", entryId: "q1" })).toEqual({
+      t: "room.queue",
+      op: "play",
+      entryId: "q1",
+    });
+  });
+
+  it("accepts a move of exactly one place", () => {
+    expect(parse({ t: "room.queue", op: "move", entryId: "q1", delta: -1 })).toEqual({
+      t: "room.queue",
+      op: "move",
+      entryId: "q1",
+      delta: -1,
+    });
+    expect(parse({ t: "room.queue", op: "move", entryId: "q1", delta: 3 })).toBeNull();
+  });
+
+  it("accepts a moveTo with a whole, non-negative index", () => {
+    expect(parse({ t: "room.queue", op: "moveTo", entryId: "q1", toIndex: 2 })).toEqual({
+      t: "room.queue",
+      op: "moveTo",
+      entryId: "q1",
+      toIndex: 2,
+    });
+    expect(parse({ t: "room.queue", op: "moveTo", entryId: "q1", toIndex: -1 })).toBeNull();
+    expect(parse({ t: "room.queue", op: "moveTo", entryId: "q1", toIndex: 1.5 })).toBeNull();
+  });
+
+  it("accepts bare clear and playNext", () => {
+    expect(parse({ t: "room.queue", op: "clear" })).toEqual({ t: "room.queue", op: "clear" });
+    expect(parse({ t: "room.queue", op: "playNext" })).toEqual({ t: "room.queue", op: "playNext" });
+  });
+
+  it("rejects an unknown op", () => {
+    expect(parse({ t: "room.queue", op: "shuffle" })).toBeNull();
   });
 });
