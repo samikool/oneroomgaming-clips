@@ -79,6 +79,8 @@ h1, h2 { font-family: var(--font-display); }
   border-radius: 8px; background: var(--color-surface-raised);
 }
 .theater-scrubber { flex: 1; min-width: 0; accent-color: var(--color-brand); }
+/* Square icon buttons in the transport: play/pause and fullscreen. */
+.transport-icon { width: 44px; padding: 0; flex-shrink: 0; }
 .volume-control { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto; }
 .volume-slider { width: 88px; accent-color: var(--color-brand); cursor: pointer; }
 /* Visibly disabled, but still clickable — the click is the request. */
