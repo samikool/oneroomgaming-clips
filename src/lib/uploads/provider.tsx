@@ -5,6 +5,7 @@ import type { Upload } from "tus-js-client";
 import { clipStatuses } from "@/app/actions";
 import { useRealtime } from "@/lib/realtime/use-realtime";
 import * as rules from "./batch";
+import { fingerprint } from "./fingerprint";
 import type { Batch, BatchItem } from "./batch";
 
 type Uploads = {
@@ -26,6 +27,22 @@ const UploadsContext = createContext<Uploads | null>(null);
 
 const ACCEPTED = /\.(mp4|mov|mkv|webm|avi)$/i;
 const keyOf = (file: File) => `${file.name}-${file.size}-${file.lastModified}`;
+
+type TusError = Error & { originalResponse?: { getStatus(): number; getBody(): string } | null };
+
+/** The existing clip named by a duplicate refusal (409 with a JSON body), if this is one. */
+function duplicateIn(err: TusError): { clipId: string; title: string } | null {
+  if (err.originalResponse?.getStatus() !== 409) {
+    return null;
+  }
+
+  try {
+    return (JSON.parse(err.originalResponse.getBody()) as { duplicate?: { clipId: string; title: string } })
+      .duplicate ?? null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Owns every upload for the tab, above the pages, so moving around the site
@@ -67,19 +84,48 @@ export function UploadsProvider({ me, children }: { me: string; children: React.
       let task = uploads.current.get(key);
 
       if (!task) {
-        const { Upload } = await import("tus-js-client");
+        const [{ Upload }, print] = await Promise.all([import("tus-js-client"), fingerprint(file)]);
         task = new Upload(file, {
           endpoint: "/api/uploads",
           chunkSize: 16 * 1024 * 1024,
           retryDelays: [0, 1000, 3000, 5000, 10000],
           removeFingerprintOnSuccess: true,
-          metadata: { filename: file.name, title: item.title.trim() || file.name.replace(/\.[^.]+$/, "") },
+          metadata: {
+            filename: file.name,
+            title: item.title.trim() || file.name.replace(/\.[^.]+$/, ""),
+            fingerprint: print,
+          },
+          // tus retries 409 by default (it means "offset mismatch" there), which
+          // would re-ask about a duplicate for ~20s. Everything else keeps the
+          // library's own rule (defaultOnShouldRetry): retry anything but a 4xx,
+          // plus 409 and 423, and only while the browser is online.
+          onShouldRetry: (err) => {
+            if (duplicateIn(err as TusError)) {
+              return false;
+            }
+
+            const status = (err as TusError).originalResponse?.getStatus() ?? 0;
+
+            return (status < 400 || status >= 500 || status === 409 || status === 423) && navigator.onLine;
+          },
           fingerprint: async () =>
             JSON.stringify(["clips-upload-v1", me, file.name, file.size, file.lastModified, file.type]),
           onProgress: (sent) => patch(key, { sent }),
           onError: (err) => {
             // A pause or cancel aborts on purpose; that is not a failure.
             if (["pausing", "paused", "cancelled"].includes(phaseOf(key) ?? "")) {
+              return;
+            }
+
+            const duplicate = duplicateIn(err as TusError);
+
+            if (duplicate) {
+              uploads.current.delete(key);
+              patch(key, {
+                phase: "duplicate",
+                clipId: duplicate.clipId,
+                message: `Already uploaded as "${duplicate.title}"`,
+              });
               return;
             }
 

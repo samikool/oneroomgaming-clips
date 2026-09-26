@@ -145,3 +145,72 @@ describe("progressPercent", () => {
     expect(progressPercent(120, 100)).toBe(100);
   });
 });
+
+describe("duplicate guard", () => {
+  const fp = (char: string) => char.repeat(64);
+  const withFingerprint = (value: string) => `,fingerprint ${Buffer.from(value).toString("base64")}`;
+
+  async function uploadWhole(fingerprint: string, bytes = "abcdef") {
+    const path = await create(bytes.length, "ace.mp4", withFingerprint(fingerprint));
+    return patch(path, 0, Buffer.from(bytes));
+  }
+
+  it("stores the fingerprint on the clip", async () => {
+    expect((await uploadWhole(fp("a"))).status).toBe(204);
+    expect(listAllClips(db)[0].fingerprint).toBe(fp("a"));
+  });
+
+  it("refuses to start an upload that is already a clip, naming the clip", async () => {
+    await uploadWhole(fp("a"));
+    const clip = listAllClips(db)[0];
+    const res = await service.handle(
+      request("POST", undefined, {
+        "upload-length": "6",
+        "upload-metadata": `filename ${Buffer.from("ace.mp4").toString("base64")}${withFingerprint(fp("a"))}`,
+      }),
+    );
+    expect(res.status).toBe(409);
+    expect(JSON.parse(await res.text())).toEqual({ duplicate: { clipId: clip.id, title: "My ace" } });
+  });
+
+  it("is global: another friend's copy counts too", async () => {
+    await uploadWhole(fp("a"));
+    const res = await service.handle(
+      request(
+        "POST",
+        undefined,
+        {
+          "upload-length": "6",
+          "upload-metadata": `filename ${Buffer.from("ace.mp4").toString("base64")}${withFingerprint(fp("a"))}`,
+        },
+        undefined,
+        "dave",
+      ),
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it("refuses the second of two racing uploads when it finishes", async () => {
+    const first = await create(6, "ace.mp4", withFingerprint(fp("b")));
+    const second = await create(6, "ace.mp4", withFingerprint(fp("b")));
+    expect((await patch(first, 0, Buffer.from("abcdef"))).status).toBe(204);
+    expect((await patch(second, 0, Buffer.from("abcdef"))).status).toBe(409);
+    expect(listAllClips(db)).toHaveLength(1);
+  });
+
+  it("rejects a malformed fingerprint", async () => {
+    const res = await service.handle(
+      request("POST", undefined, {
+        "upload-length": "6",
+        "upload-metadata": `filename ${Buffer.from("ace.mp4").toString("base64")}${withFingerprint("nope")}`,
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("still accepts an upload with no fingerprint (an older tab)", async () => {
+    const path = await create(6);
+    expect((await patch(path, 0, Buffer.from("abcdef"))).status).toBe(204);
+    expect(listAllClips(db)[0].fingerprint).toBeNull();
+  });
+});

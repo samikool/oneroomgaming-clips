@@ -27,6 +27,7 @@ export function createClip(
     sizeBytes: number;
     uploaderId?: string | null;
     recordedAt?: Date | null;
+    fingerprint?: string | null;
   },
   now: Date = new Date(),
 ): Clip {
@@ -37,6 +38,7 @@ export function createClip(
       title: input.title,
       originalFilename: input.originalFilename,
       uploaderId: input.uploaderId ?? null,
+      fingerprint: input.fingerprint ?? null,
       gameId: null,
       status: "pending",
       durationMs: null,
@@ -133,6 +135,11 @@ export function listReadyClips(db: Db, limit = 100): Clip[] {
 
 export function listAllClips(db: Db, limit = 100): Clip[] {
   return db.select().from(clips).orderBy(desc(clips.createdAt)).limit(limit).all();
+}
+
+/** The clip already made from this exact file, if any. */
+export function findClipByFingerprint(db: Db, fingerprint: string): Clip | undefined {
+  return db.select().from(clips).where(eq(clips.fingerprint, fingerprint)).get();
 }
 
 export function getClip(db: Db, id: string): Clip | undefined {

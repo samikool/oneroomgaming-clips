@@ -53,6 +53,8 @@ function Status({ item }: { item: BatchItem }) {
       return <span className="upload-status text-danger">Could not process this video</span>;
     case "needs_transcode":
       return <span className="upload-status text-danger">This format needs converting first</span>;
+    case "duplicate":
+      return <span className="upload-status text-accent">{item.message ?? "Already uploaded"}</span>;
     case "cancelled":
       return <span className="upload-status text-ink-muted">Cancelled</span>;
     default:
@@ -85,7 +87,7 @@ export function UploadList({ compact = false }: { compact?: boolean }) {
               Retry
             </button>
           )}
-          {item.phase === "ready" && item.clipId && (
+          {(item.phase === "ready" || item.phase === "duplicate") && item.clipId && (
             <Link className="chip-button" href={`/clips/${item.clipId}`}>
               Watch
             </Link>

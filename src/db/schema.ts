@@ -1,4 +1,4 @@
-import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -47,10 +47,18 @@ export const clips = sqliteTable(
     thumbPath: text("thumb_path"),
     errorMessage: text("error_message"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    /**
+     * SHA-256 of the file's size, first MiB and last MiB, computed by the
+     * uploading browser. One clip per fingerprint, across everyone. Null for
+     * clips from before 0.3.5 and for folder-ingested ones; SQLite lets any
+     * number of NULLs share a unique index.
+     */
+    fingerprint: text("fingerprint"),
   },
   (t) => [
     index("clips_created_at_idx").on(t.createdAt),
     index("clips_status_idx").on(t.status),
+    uniqueIndex("clips_fingerprint_idx").on(t.fingerprint),
   ],
 );
 

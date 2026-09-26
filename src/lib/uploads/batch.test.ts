@@ -178,3 +178,17 @@ describe("processingClipIds", () => {
     ).toEqual(["c1"]);
   });
 });
+
+describe("duplicates", () => {
+  it("counts a refused duplicate as finished, and moves on to the next file", () => {
+    const b = batch([item("a", "duplicate", { clipId: "c1" }), item("b", "queued")]);
+    expect(nextToSend(b)).toBe("b");
+    expect(summarize(batch([item("a", "duplicate"), item("b", "ready", { sent: 100 })])).finished).toBe(true);
+  });
+
+  it("is nothing to lose on close, and clears with the finished ones", () => {
+    const b = batch([item("a", "duplicate")]);
+    expect(isActive(b)).toBe(false);
+    expect(clearFinished(b).items).toEqual([]);
+  });
+});
