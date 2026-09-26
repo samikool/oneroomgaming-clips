@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ClipSummary, QueueEntry, RoomQueueCommand } from "@/lib/realtime/envelope";
 import { dropTarget, gapAtPointer } from "@/lib/theater/queue-drag";
+import { UserName } from "./user-name";
 
 type QueueOp = Exclude<RoomQueueCommand, { op: "add" }>;
 
@@ -156,7 +157,10 @@ export function TheaterQueue({
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-ink">{entry.title}</p>
-                  <p className="truncate text-xs text-ink-muted">added by {entry.addedBy}</p>
+                  {/* No link: the row is a drag target, and a link would fight the pointer drag. */}
+                  <p className="truncate text-xs text-ink-muted">
+                    added by <UserName username={entry.addedBy} variant="compact" withAvatar link={false} />
+                  </p>
                 </div>
                 {iAmHost && (
                   <div className="queue-actions">

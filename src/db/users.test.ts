@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createDb, type Db } from "@/db/client";
-import { upsertUser } from "@/db/users";
+import { upsertUser, upsertUserTracked } from "@/db/users";
 
 let db: Db;
 
@@ -66,5 +66,12 @@ describe("upsertUser", () => {
     const dave = upsertUser(db, { username: "dave", email: null, displayName: null });
 
     expect(sam.id).not.toBe(dave.id);
+  });
+});
+
+describe("upsertUserTracked", () => {
+  it("reports creation only on first sight", () => {
+    expect(upsertUserTracked(db, { username: "new", email: null, displayName: null }).created).toBe(true);
+    expect(upsertUserTracked(db, { username: "new", email: null, displayName: null }).created).toBe(false);
   });
 });

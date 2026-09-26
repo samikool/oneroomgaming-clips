@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { UserName } from "./user-name";
 import { MAX_CHAT_LENGTH } from "@/lib/realtime/chat";
 import type { ChatMessage } from "@/lib/realtime/envelope";
 
@@ -47,9 +48,13 @@ export function TheaterChat({
         {messages.length === 0 && <li className="text-sm text-ink-muted">Nothing said yet.</li>}
         {messages.map((message) => (
           <li key={message.id} className="text-sm">
-            <span className={message.user === me ? "text-ink" : "text-ink-muted"}>
-              {message.user}
-            </span>{" "}
+            {message.user === me ? (
+              <strong>
+                <UserName username={message.user} variant="compact" withAvatar />
+              </strong>
+            ) : (
+              <UserName username={message.user} variant="compact" withAvatar />
+            )}{" "}
             <span className="text-ink">{message.text}</span>
           </li>
         ))}

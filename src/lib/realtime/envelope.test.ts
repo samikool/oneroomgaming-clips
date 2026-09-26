@@ -37,6 +37,24 @@ describe("topicsFor", () => {
     expect(topicsFor({ t: "hello", username: "sam", serverTime: 1 })).toEqual(["user"]);
     expect(topicsFor({ t: "time.sync", t0: 1, t1: 2 })).toEqual(["user"]);
   });
+
+  it("routes profile updates to the profiles topic", () => {
+    expect(
+      topicsFor({
+        t: "profile.updated",
+        profile: { username: "sam", userId: "U", name: "Sam", accent: "cyan", bio: null, pictureVersion: null },
+      }),
+    ).toEqual(["profiles"]);
+  });
+});
+
+describe("parseClientMessage sub", () => {
+  it("accepts a subscription to profiles", () => {
+    expect(parseClientMessage(JSON.stringify({ t: "sub", topics: ["profiles"] }))).toEqual({
+      t: "sub",
+      topics: ["profiles"],
+    });
+  });
 });
 
 describe("isEphemeral", () => {

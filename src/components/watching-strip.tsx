@@ -1,5 +1,8 @@
 "use client";
 
+import { Avatar } from "./avatar";
+import { UserName } from "./user-name";
+
 /**
  * Who is in the room, as one line under the player. The host hands control
  * over by clicking a name — immediate, like the list it replaces. When nobody
@@ -26,6 +29,15 @@ export function WatchingStrip({
       {inRoom.length === 0 && <span className="text-ink-muted">nobody yet</span>}
       {inRoom.map((user) => {
         const label = `${user}${user === me ? " (you)" : ""}${user === hostUserId ? " 👑" : ""}`;
+        // No profile link inside: for the host, clicking a name means "give control".
+        const content = (
+          <>
+            <Avatar username={user} size={16} />
+            <UserName username={user} variant="compact" link={false} />
+            {user === me && " (you)"}
+            {user === hostUserId && " 👑"}
+          </>
+        );
 
         return iAmHost && user !== me ? (
           <button
@@ -35,11 +47,11 @@ export function WatchingStrip({
             title={`Give ${user} control`}
             onClick={() => onGiveControl(user)}
           >
-            {label}
+            {content}
           </button>
         ) : (
-          <span key={user} className="watching-name">
-            {label}
+          <span key={user} className="watching-name" title={label}>
+            {content}
           </span>
         );
       })}

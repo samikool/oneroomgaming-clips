@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { formatDuration } from "@/lib/format";
 import type { RoomState } from "@/lib/realtime/envelope";
 import { positionNow } from "@/lib/realtime/room-state";
+import { UserName } from "./user-name";
 
 /**
  * The room's transport.
@@ -108,7 +109,13 @@ export function TheaterTransport({
       </span>
       {disabled && (
         <span className="shrink-0 text-xs text-ink-muted">
-          {state.hostUserId === null ? "Nobody has control" : `following ${state.hostUserId}`}
+          {state.hostUserId === null ? (
+            "Nobody has control"
+          ) : (
+            <>
+              following <UserName username={state.hostUserId} variant="compact" link={false} />
+            </>
+          )}
         </span>
       )}
       {children}

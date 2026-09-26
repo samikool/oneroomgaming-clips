@@ -8,6 +8,7 @@ import { useRoom } from "@/lib/theater/use-room";
 import { summarize } from "@/lib/uploads/batch";
 import { useUploads } from "@/lib/uploads/provider";
 import { Spinner } from "./spinner";
+import { UserName } from "./user-name";
 import { BatchControls, UploadList } from "./upload-list";
 
 type Tray = "theater" | "uploads" | null;
@@ -160,7 +161,7 @@ function TheaterTray({ me, onClose }: { me: string; onClose(): void }) {
             ? "You have control"
             : state.hostUserId === null
               ? "Nobody has control"
-              : `${host} is hosting`}{" "}
+              : <><UserName username={host} variant="compact" link={false} /> is hosting</>}{" "}
           · {view.inRoom.length} watching
           {state.clipId !== null &&
             ` · ${formatDuration(positionNow(state, clock.now(Date.now())))} / ${formatDuration(state.clipDurationMs)}`}

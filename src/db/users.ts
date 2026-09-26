@@ -4,11 +4,12 @@ import type { Db } from "./client";
 import { users, type User } from "./schema";
 import type { AuthenticatedUser } from "@/lib/auth";
 
-export function upsertUser(
+/** Upserts the request's identity, saying whether this is the first sight of them. */
+export function upsertUserTracked(
   db: Db,
   identity: AuthenticatedUser,
   now: Date = new Date(),
-): User {
+): { user: User; created: boolean } {
   const existing = db
     .select()
     .from(users)
@@ -16,7 +17,7 @@ export function upsertUser(
     .get();
 
   if (existing) {
-    return db
+    const user = db
       .update(users)
       .set({
         email: identity.email ?? existing.email,
@@ -26,9 +27,11 @@ export function upsertUser(
       .where(eq(users.id, existing.id))
       .returning()
       .get();
+
+    return { user, created: false };
   }
 
-  return db
+  const user = db
     .insert(users)
     .values({
       id: ulid(),
@@ -41,6 +44,12 @@ export function upsertUser(
     })
     .returning()
     .get();
+
+  return { user, created: true };
+}
+
+export function upsertUser(db: Db, identity: AuthenticatedUser, now: Date = new Date()): User {
+  return upsertUserTracked(db, identity, now).user;
 }
 
 /** Every username known here, for the participant picker's hint. */

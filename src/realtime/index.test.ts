@@ -176,6 +176,29 @@ describe("websocket protocol", () => {
     ws.close();
   });
 
+  it("relays profile.updated to profiles subscribers", async () => {
+    const ws = connect();
+    await nextMessage(ws);
+    ws.send(JSON.stringify({ t: "sub", topics: ["profiles"] }));
+    // Subscribing always answers with presence; once it arrives, the sub is in.
+    await waitFor(ws, (m) => m.t === "presence");
+
+    // Listener first, then the emit: /emit publishes synchronously.
+    const received = waitFor(ws, (m) => m.t === "profile.updated");
+    const response = await fetch(`http://localhost:${PORT}/emit`, {
+      method: "POST",
+      headers: { "X-Emit-Secret": "test-secret", "content-type": "application/json" },
+      body: JSON.stringify({
+        t: "profile.updated",
+        profile: { username: "sam", userId: "U", name: "Sam", accent: "cyan", bio: null, pictureVersion: null },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await received).toMatchObject({ t: "profile.updated", profile: { name: "Sam" } });
+    ws.close();
+  });
+
   it("rejects an emit body that is not a message object", async () => {
     const response = await fetch(`http://localhost:${PORT}/emit`, {
       method: "POST",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { UserName } from "./user-name";
 import { removeComment } from "@/app/clips/[id]/actions";
 import type { CommentRow } from "@/db/comments";
 import { TOMBSTONE } from "@/db/comments";
@@ -44,7 +45,9 @@ export function CommentList({
     <ol className="comment-list">
       {comments.map((comment) => (
         <li key={comment.id} className="comment">
-          <p className="text-xs text-ink-muted">{comment.user}</p>
+          <p className="text-xs">
+            <UserName username={comment.user} />
+          </p>
           <p className={comment.deleted ? "text-sm italic text-ink-muted" : "text-sm text-ink"}>
             {comment.body}
           </p>

@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+import { Avatar } from "./avatar";
+import { profileHref } from "@/lib/profiles/href";
 import { useRealtime } from "@/lib/realtime/use-realtime";
 
 /**
@@ -18,9 +21,16 @@ export function PresenceBar({ me }: { me: string }) {
 
   const others = online.filter((name) => name !== me);
 
-  return (
-    <span>
-      {others.length === 0 ? "You're the only one here" : `Here now: ${others.join(", ")}`}
+  return others.length === 0 ? (
+    <span>You&apos;re the only one here</span>
+  ) : (
+    <span className="inline-flex items-center gap-1">
+      Here now:
+      {others.map((name) => (
+        <Link key={name} href={profileHref(name)} title={name} aria-label={name} className="inline-flex">
+          <Avatar username={name} size={20} />
+        </Link>
+      ))}
     </span>
   );
 }

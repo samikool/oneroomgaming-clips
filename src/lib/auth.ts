@@ -82,6 +82,21 @@ export function resolveIdentity(
 }
 
 /**
+ * Whether this request's identity came from DEV_AUTH_USERNAME rather than
+ * Authentik. There is no Authentik session to end then, so sign-out is hidden.
+ */
+export function isDevFallbackIdentity(
+  headers: HeaderBag,
+  env: Partial<NodeJS.ProcessEnv> = process.env,
+): boolean {
+  return (
+    readHeader(headers, USERNAME_HEADER) === null &&
+    env.NODE_ENV !== "production" &&
+    !!env.DEV_AUTH_USERNAME?.trim()
+  );
+}
+
+/**
  * Whether this username may perform destructive admin actions.
  *
  * Config, not data: `CLIPS_ADMINS` is a comma-separated list of

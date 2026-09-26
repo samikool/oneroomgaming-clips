@@ -1,8 +1,9 @@
 import { isReaction, normalizeChatText, type ChatMessage } from "./chat";
+import type { Profile } from "@/lib/profiles/types";
 
 export type { ChatMessage } from "./chat";
 
-export const TOPICS = ["grid", "user", "room"] as const;
+export const TOPICS = ["grid", "user", "room", "profiles"] as const;
 export type Topic = (typeof TOPICS)[number];
 
 export type ClipSummary = {
@@ -93,7 +94,9 @@ export type ServerMessage =
   // Carries only the id: by the time this is published the row is gone, so
   // there is no clip left to summarise.
   | { t: "clip.removed"; clipId: string }
-  | { t: "upload.progress"; uploadId: string; pct: number; user: string };
+  | { t: "upload.progress"; uploadId: string; pct: number; user: string }
+  // Someone's name, colour, bio or picture changed, or someone new arrived.
+  | { t: "profile.updated"; profile: Profile };
 
 export type ClientMessage =
   | { t: "sub"; topics: Topic[] }
@@ -148,6 +151,8 @@ export function topicsFor(message: ServerMessage): Topic[] {
     case "chat.backlog":
     case "reaction":
       return ["room"];
+    case "profile.updated":
+      return ["profiles"];
     // comment.added falls through to grid on purpose: topics are a fixed
     // enum, and the browser filters by clipId.
     default:
