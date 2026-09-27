@@ -8,14 +8,14 @@ import { UploadsProvider } from "@/lib/uploads/provider";
 
 export function AppShell({
   me,
+  isAdmin,
   showSignOut,
-  isAdmin = false,
   profiles,
   children,
 }: {
   me: string;
+  isAdmin: boolean;
   showSignOut: boolean;
-  isAdmin?: boolean;
   profiles: Profile[];
   children: React.ReactNode;
 }) {
@@ -26,7 +26,7 @@ export function AppShell({
         {/* Above the pages, so moving around the site never stops an upload. */}
         <UploadsProvider me={me}>
           <SlideProvider>
-            <SiteHeader me={me} showSignOut={showSignOut} isAdmin={isAdmin} />
+            <SiteHeader me={me} isAdmin={isAdmin} showSignOut={showSignOut} />
             {/* Room for the fixed activity bar, so it never covers the last row of the grid. */}
             <div className="pb-24">
               <PageSlide>{children}</PageSlide>

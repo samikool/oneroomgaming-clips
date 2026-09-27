@@ -11,7 +11,8 @@ type InstallPromptEvent = Event & { prompt(): Promise<void>; userChoice: Promise
  * trigger; iOS has none, so it gets a hint. Hidden once installed, and on
  * any browser that offers no way to install.
  */
-export function InstallButton() {
+export function InstallButton({ menuItem = false }: { menuItem?: boolean }) {
+  const buttonClass = menuItem ? "header-menu-item w-full" : "nav-link text-sm";
   const [prompt, setPrompt] = useState<InstallPromptEvent | null>(null);
   const [standalone, setStandalone] = useState(true); // Hidden until the browser has been asked.
   const [ios, setIos] = useState(false);
@@ -35,7 +36,11 @@ export function InstallButton() {
     // script (EARLY_PROMPT_SCRIPT) keeps it for us.
     const early = (window as Window & { __installPrompt?: InstallPromptEvent }).__installPrompt;
     if (early) setPrompt(early);
-    const onInstalled = () => setPrompt(null);
+    const onInstalled = () => {
+      (window as Window & { __installPrompt?: InstallPromptEvent }).__installPrompt = undefined;
+      setPrompt(null);
+      setStandalone(true);
+    };
     window.addEventListener("beforeinstallprompt", onPrompt);
     window.addEventListener("appinstalled", onInstalled);
 
@@ -71,7 +76,7 @@ export function InstallButton() {
     return (
       <button
         type="button"
-        className="nav-link text-sm"
+        className={buttonClass}
         onClick={async () => {
           const event = prompt!;
           await event.prompt();
@@ -87,7 +92,7 @@ export function InstallButton() {
 
   return (
     <span ref={wrap} className="relative">
-      <button type="button" className="nav-link text-sm" aria-expanded={hintOpen} onClick={() => setHintOpen((open) => !open)}>
+      <button type="button" className={buttonClass} aria-expanded={hintOpen} onClick={() => setHintOpen((open) => !open)}>
         Install app
       </button>
       {hintOpen && (

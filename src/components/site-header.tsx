@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { InstallButton } from "@/components/install-button";
-import { PresenceBar } from "@/components/presence-bar";
-import { SignOut } from "@/components/sign-out";
-import { UserName } from "@/components/user-name";
+import { AccountMenu } from "@/components/account-menu";
+import { OnlinePill } from "@/components/online-pill";
 import {
   type BarBox,
   barStyle,
@@ -20,15 +18,7 @@ import {
 } from "@/lib/nav";
 import { PANEL_MS, SETTLE, useSlide } from "./page-slide";
 
-export function SiteHeader({
-  me,
-  showSignOut,
-  isAdmin = false,
-}: {
-  me: string;
-  showSignOut: boolean;
-  isAdmin?: boolean;
-}) {
+export function SiteHeader({ me, isAdmin, showSignOut }: { me: string; isAdmin: boolean; showSignOut: boolean }) {
   const pathname = usePathname();
   const slide = useSlide();
   const run = slide?.run ?? null;
@@ -139,17 +129,9 @@ export function SiteHeader({
           })}
           {target !== null && <span ref={bar} className="nav-underline" aria-hidden="true" />}
         </nav>
-        <div className="ml-auto flex min-w-0 items-center gap-3 text-sm text-ink-muted">
-          <PresenceBar me={me} />
-          <InstallButton />
-          {/* Not in NAV_LINKS: no tab, no slide. Rendered only for admins. */}
-          {isAdmin && (
-            <Link href="/admin" className="nav-link text-sm">
-              Admin
-            </Link>
-          )}
-          <UserName username={me} />
-          {showSignOut && <SignOut />}
+        <div className="ml-auto flex items-center gap-2">
+          <OnlinePill me={me} />
+          <AccountMenu me={me} isAdmin={isAdmin} showSignOut={showSignOut} />
         </div>
       </div>
     </header>
