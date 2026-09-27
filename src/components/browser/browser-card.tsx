@@ -8,8 +8,6 @@ import { ClipTile } from "../clip-card";
 import { PersonChip } from "../person-chip";
 import { useBrowseActions } from "./browse-context";
 
-export type CardSelection = { selecting: boolean; selected: boolean; onToggle(id: string): void };
-
 /** The heart until the activity branch's LikeButton is wired into the slot: a read-only count. */
 export function LikeCount({ clip }: { clip: ClipSummary }) {
   return (
@@ -33,36 +31,13 @@ export function BrowserCard({
   scope,
   actions,
   like,
-  selection,
 }: {
   clip: ClipSummary;
   scope: Scope;
   actions?: ReactNode;
   like?: ReactNode;
-  selection?: CardSelection;
 }) {
   const browse = useBrowseActions();
-
-  // Selecting drops the chips: a filter change mid-selection would swap the
-  // cards out from under it.
-  if (selection?.selecting) {
-    return (
-      <div>
-        <button
-          type="button"
-          aria-pressed={selection.selected}
-          onClick={() => selection.onToggle(clip.id)}
-          className={`relative block w-full cursor-pointer text-left${selection.selected ? " clip-selected" : ""}`}
-        >
-          <span aria-hidden="true" className={`clip-check${selection.selected ? " clip-check-on" : ""}`} />
-          <span className={clip.status === "ready" ? undefined : "block opacity-60"}>
-            <ClipTile clip={clip} />
-          </span>
-          <span className="sr-only">{selection.selected ? "Selected" : "Not selected"}</span>
-        </button>
-      </div>
-    );
-  }
 
   const footer = (
     <div className="browser-card-foot">

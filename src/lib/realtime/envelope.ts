@@ -107,6 +107,21 @@ export type ReportedEvent =
   | { kind: "theater.reaction"; user: string; clipId: string | null; emoji: string; at: number }
   | { kind: "theater.chat"; user: string; clipId: string | null; body: string; at: number };
 
+/** A pipeline job as the admin's jobs panel shows it. Times are epoch milliseconds. */
+export type AdminJob = {
+  id: string;
+  clipId: string;
+  /** Null when the clip has since been deleted. */
+  clipTitle: string | null;
+  type: string;
+  status: "queued" | "running" | "done" | "failed";
+  attempts: number;
+  lastError: string | null;
+  createdAt: number;
+  startedAt: number | null;
+  finishedAt: number | null;
+};
+
 export const ROOM_ACTIONS =["play", "pause", "seek", "setClip"] as const;
 export type RoomAction = (typeof ROOM_ACTIONS)[number];
 
@@ -131,7 +146,9 @@ export type ServerMessage =
   | { t: "notification"; notification: NotificationSummary }
   | { t: "upload.progress"; uploadId: string; pct: number; user: string }
   // Someone's name, colour, bio or picture changed, or someone new arrived.
-  | { t: "profile.updated"; profile: Profile };
+  | { t: "profile.updated"; profile: Profile }
+  // A job changed status. Grid, like every clip event; only /admin listens.
+  | { t: "job.updated"; job: AdminJob };
 
 export type ClientMessage =
   | { t: "sub"; topics: Topic[] }

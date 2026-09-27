@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { createDb, type Db } from "@/db/client";
 import { createClip, getClip } from "@/db/clips";
 import { enqueueJob } from "@/db/jobs";
@@ -79,5 +79,33 @@ describe("startRunner", () => {
 
     // A stopped runner must not pick up work enqueued afterwards.
     expect(db.select().from(jobsTable).get()?.attempts).toBe(0);
+  });
+});
+
+describe("job.updated", () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("announces each status change of a job to the admin panel", async () => {
+    const sent: { t: string; job?: { status: string; attempts: number; clipTitle: string | null } }[] = [];
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      sent.push(JSON.parse(String(init.body)));
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+    const env = { REALTIME_URL: "http://realtime:3001", EMIT_SECRET: "s" };
+    const clip = createClip(db, { title: "a", originalFilename: "a.mp4", sizeBytes: 1 });
+    enqueueJob(db, clip.id, "transcode");
+
+    await runOnce({ db, env });
+    await Bun.sleep(0);
+
+    const jobs = sent.filter((m) => m.t === "job.updated").map((m) => [m.job!.status, m.job!.attempts, m.job!.clipTitle]);
+    // Claimed, then back in the queue with retries left.
+    expect(jobs).toEqual([
+      ["running", 1, "a"],
+      ["queued", 1, "a"],
+    ]);
   });
 });
