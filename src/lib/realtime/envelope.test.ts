@@ -251,7 +251,7 @@ describe("topicsFor — social messages", () => {
   it("routes a new comment to the grid topic", () => {
     // Topics are a fixed enum; a per-clip topic would need parameterised
     // subscriptions the hub does not have. The browser filters by clipId.
-    const comment = { id: "1", clipId: "01A", user: "sam", body: "gg", at: 1, deleted: false };
+    const comment = { id: "1", clipId: "01A", user: "sam", body: "gg", at: 1, deleted: false, positionMs: null };
     expect(topicsFor({ t: "comment.added", comment })).toEqual(["grid"]);
   });
 });
@@ -272,7 +272,7 @@ describe("isEphemeral — social messages", () => {
   });
 
   it("never drops a comment", () => {
-    const comment = { id: "1", clipId: "01A", user: "sam", body: "gg", at: 1, deleted: false };
+    const comment = { id: "1", clipId: "01A", user: "sam", body: "gg", at: 1, deleted: false, positionMs: null };
     expect(isEphemeral({ t: "comment.added", comment })).toBe(false);
   });
 });
@@ -352,5 +352,69 @@ describe("parseClientMessage — room.queue", () => {
 
   it("rejects an unknown op", () => {
     expect(parse({ t: "room.queue", op: "shuffle" })).toBeNull();
+  });
+});
+
+describe("parseClientMessage — addMany and load", () => {
+  const parse = (message: object) => parseClientMessage(JSON.stringify(message));
+  const source = { collectionId: "K1", name: "Kobe fails" };
+
+  it("accepts a valid addMany", () => {
+    expect(
+      parse({ t: "room.queue", op: "addMany", source, clips: [{ clipId: "01A", title: "ace", durationMs: 1000 }] }),
+    ).toEqual({
+      t: "room.queue",
+      op: "addMany",
+      source,
+      clips: [{ clipId: "01A", title: "ace", durationMs: 1000 }],
+    });
+  });
+
+  it("accepts a load without a source", () => {
+    expect(parse({ t: "room.queue", op: "load", clips: [{ clipId: "01A" }] })).toEqual({
+      t: "room.queue",
+      op: "load",
+      source: null,
+      clips: [{ clipId: "01A", title: "", durationMs: null }],
+    });
+  });
+
+  it("rejects a non-array clips", () => {
+    expect(parse({ t: "room.queue", op: "addMany", source, clips: "nope" })).toBeNull();
+    expect(parse({ t: "room.queue", op: "load", source })).toBeNull();
+  });
+
+  it("drops entries without a clipId", () => {
+    const parsed = parse({ t: "room.queue", op: "addMany", clips: [{ title: "x" }, { clipId: "01A" }, null, 5] });
+    expect(parsed?.t === "room.queue" && parsed.op === "addMany" ? parsed.clips.map((c) => c.clipId) : null).toEqual([
+      "01A",
+    ]);
+  });
+
+  it("caps the list at 200 and slices titles", () => {
+    const clips = Array.from({ length: 300 }, (_, i) => ({ clipId: `c${i}`, title: "x".repeat(500) }));
+    const parsed = parse({ t: "room.queue", op: "addMany", clips });
+    const list = parsed?.t === "room.queue" && parsed.op === "addMany" ? parsed.clips : [];
+    expect(list).toHaveLength(200);
+    expect(list[0].title).toHaveLength(200);
+  });
+
+  it("drops a malformed source rather than trusting it", () => {
+    const parsed = parse({ t: "room.queue", op: "addMany", source: { collectionId: 5 }, clips: [{ clipId: "01A" }] });
+    expect(parsed?.t === "room.queue" && parsed.op === "addMany" ? parsed.source : "x").toBeNull();
+  });
+});
+
+describe("room.notice", () => {
+  it("goes to the room topic and may be dropped", () => {
+    expect(topicsFor({ t: "room.notice", text: "Queue is full — nothing added" })).toEqual(["room"]);
+    expect(isEphemeral({ t: "room.notice", text: "x" })).toBe(true);
+  });
+});
+
+describe("collection.updated", () => {
+  it("goes to grid and is never dropped", () => {
+    expect(topicsFor({ t: "collection.updated", collectionId: "K1" })).toEqual(["grid"]);
+    expect(isEphemeral({ t: "collection.updated", collectionId: "K1" })).toBe(false);
   });
 });

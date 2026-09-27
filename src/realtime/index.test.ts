@@ -655,3 +655,70 @@ describe("theater reports to web", () => {
     ws.close();
   });
 });
+
+describe("loading collections over the socket", () => {
+  const many = (prefix: string, n: number) =>
+    Array.from({ length: n }, (_, i) => ({ clipId: `${prefix}${i}`, title: `${prefix}${i}`, durationMs: 1000 }));
+  const source = { collectionId: "K1", name: "Kobe fails" };
+  const queueOf = (m: Record<string, unknown>) => state(m).queue as { clipId: string; source?: unknown }[];
+
+  it("tells only the sender how much of an addMany fitted, and sends one snapshot", async () => {
+    const host = await joinRoomTopic("load-host");
+    const kobe = await joinRoomTopic("load-kobe");
+    host.send(JSON.stringify({ t: "room.join" }));
+    await waitFor(host, (m) => m.t === "room" && state(m).hostUserId === "load-host");
+    kobe.send(JSON.stringify({ t: "room.join" }));
+    await waitFor(kobe, (m) => m.t === "presence" && (m.inRoom as string[]).includes("load-kobe"));
+
+    // The host fills the queue to two short of the limit, replacing whatever was there.
+    const filled = waitFor(kobe, (m) => m.t === "room" && queueOf(m).length === 48);
+    host.send(JSON.stringify({ t: "room.queue", op: "load", source: null, clips: many("h", 48) }));
+    await filled;
+
+    let hostNotices = 0;
+    let kobeSnapshots = 0;
+    host.addEventListener("message", (event) => {
+      if ((JSON.parse(String(event.data)) as { t: string }).t === "room.notice") hostNotices += 1;
+    });
+    kobe.addEventListener("message", (event) => {
+      if ((JSON.parse(String(event.data)) as { t: string }).t === "room") kobeSnapshots += 1;
+    });
+    const notice = waitFor(kobe, (m) => m.t === "room.notice");
+    const hostSaw = waitFor(host, (m) => m.t === "room" && queueOf(m).length === 50);
+
+    kobe.send(JSON.stringify({ t: "room.queue", op: "addMany", source, clips: many("k", 5) }));
+
+    expect(await notice).toEqual({ t: "room.notice", text: "Queued 2 of 5 — queue is full" });
+    const snapshot = await hostSaw;
+    expect(queueOf(snapshot).at(-1)).toMatchObject({ clipId: "k1", source });
+    await Bun.sleep(50);
+    expect(hostNotices).toBe(0);
+    expect(kobeSnapshots).toBe(1);
+    host.close();
+    kobe.close();
+  });
+
+  it("a host load produces exactly one snapshot, never an empty queue in between", async () => {
+    const host = await joinRoomTopic("load2-host");
+    host.send(JSON.stringify({ t: "room.join" }));
+    await waitFor(host, (m) => m.t === "room" && state(m).hostUserId === "load2-host");
+    const seeded = waitFor(host, (m) => m.t === "room" && queueOf(m).length === 3);
+    host.send(JSON.stringify({ t: "room.queue", op: "addMany", source: null, clips: many("s", 3) }));
+    await seeded;
+
+    const snapshots: Record<string, unknown>[] = [];
+    host.addEventListener("message", (event) => {
+      const message = JSON.parse(String(event.data)) as Record<string, unknown>;
+      if (message.t === "room") snapshots.push(message);
+    });
+    const loaded = waitFor(host, (m) => m.t === "room" && queueOf(m)[0]?.clipId === "l0");
+
+    host.send(JSON.stringify({ t: "room.queue", op: "load", source, clips: many("l", 4) }));
+
+    await loaded;
+    await Bun.sleep(50);
+    expect(snapshots).toHaveLength(1);
+    expect(queueOf(snapshots[0]).map((e) => e.clipId)).toEqual(["l0", "l1", "l2", "l3"]);
+    host.close();
+  });
+});

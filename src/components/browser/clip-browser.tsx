@@ -29,6 +29,7 @@ export function ClipBrowser({
   cardActions,
   renderLike,
   me,
+  barExtras,
 }: {
   initialQuery: BrowseQuery;
   initialPages: Partial<Record<Sort, Page>>;
@@ -39,6 +40,7 @@ export function ClipBrowser({
   renderLike?: (clip: ClipSummary) => ReactNode;
   /** The viewer. With it, every card gets a live like button; without, a read-only count. */
   me?: string;
+  barExtras?: ReactNode;
 }) {
   const pages = useMemo(
     () => Object.fromEntries(SORTS.map((sort) => [sort, initialPages[sort] ?? { clips: [], next: null }])) as Record<Sort, Page>,
@@ -74,7 +76,7 @@ export function ClipBrowser({
   return (
     <BrowseContext.Provider value={actions}>
       <section className="clip-browser">
-        <BrowseBar browse={browse} options={options} />
+        <BrowseBar browse={browse} options={options} trailing={barExtras} />
 
         <TabStrip active={active} onChange={browse.setActive}>
           {SORTS.map((sort) => (

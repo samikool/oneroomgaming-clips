@@ -1,0 +1,128 @@
+/* 0.4.0 collections and sharing. Kept apart from globals.css so parallel
+   work there doesn't collide; imported from it. Same tokens, same look. */
+
+/* Share under the player, and comment timestamps. */
+.share { position: relative; display: inline-flex; }
+.share-toggle, .collect-toggle {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px;
+  border: 1px solid var(--color-line); border-radius: 4px; background: var(--color-surface);
+  color: var(--color-ink-muted); font-size: 13px; cursor: pointer;
+  transition: border-color 120ms ease-out, color 120ms ease-out;
+}
+.share-toggle:hover, .collect-toggle:hover, .share-toggle[aria-expanded="true"], .collect-toggle[aria-expanded="true"] {
+  border-color: var(--color-brand); color: var(--color-ink);
+}
+.share-popover, .collect-popover, .load-popover {
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 30;
+  width: min(340px, calc(100vw - 32px)); padding: 10px;
+  background: var(--color-surface-raised); border: 1px solid var(--color-brand); border-radius: 6px;
+  box-shadow: 4px 4px 0 var(--color-surface-sunken);
+}
+.share-row { display: flex; gap: 6px; }
+.share-link {
+  flex: 1; min-width: 0; padding: 6px 8px; font-size: 13px;
+  border: 1px solid var(--color-line-strong); border-radius: 4px; background: var(--color-surface-sunken); color: var(--color-ink);
+}
+.share-copy { padding: 6px 12px; font-size: 13px; }
+.share-start { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; color: var(--color-ink); }
+.share-status { min-height: 1em; margin-top: 6px; font-size: 12px; color: var(--color-ink-muted); }
+.comment-time { color: var(--color-brand); font-variant-numeric: tabular-nums; text-decoration: none; }
+.comment-time:hover { text-decoration: underline; }
+@media (prefers-reduced-motion: reduce) {
+  .share-toggle, .collect-toggle { transition: none; }
+}
+
+/* Collection cards: a 2×2 mosaic of the first four thumbnails. */
+.collection-mosaic {
+  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 1px;
+  aspect-ratio: 16 / 9; overflow: hidden; background: var(--color-line);
+}
+.collection-mosaic > * { display: block; width: 100%; height: 100%; min-height: 0; }
+.collection-open-badge {
+  flex-shrink: 0; padding: 0 5px; border: 1px solid var(--color-accent); border-radius: 3px;
+  font-family: var(--font-pixel); font-size: 9px; line-height: 14px; letter-spacing: 0.04em;
+  color: var(--color-accent); text-transform: uppercase;
+}
+h1 .collection-open-badge { font-size: 10px; line-height: 16px; }
+
+/* The create/edit form. */
+.collection-panel {
+  max-width: 480px; padding: 12px; border: 1px solid var(--color-line); border-radius: 6px;
+  background: var(--color-surface-raised);
+}
+.collection-editor { display: flex; flex-direction: column; gap: 12px; }
+.collection-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--color-ink); }
+.collection-field textarea { resize: vertical; }
+.collection-field-error { font-size: 12px; color: var(--color-danger); }
+.collection-switch { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--color-ink); cursor: pointer; }
+
+/* A collection's clips: tiles with who added them, a grip and an × for those allowed. */
+.collection-item { position: relative; }
+.collection-item-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  margin-top: 6px; font-size: 12px; color: var(--color-ink-muted);
+}
+.collection-item-actions { display: inline-flex; gap: 2px; flex-shrink: 0; }
+.collection-grip {
+  position: absolute; top: 4px; left: 4px; z-index: 2; width: 32px; height: 32px;
+  border-radius: 4px; background: color-mix(in srgb, var(--color-surface-sunken) 80%, transparent);
+  touch-action: none; cursor: grab;
+}
+.collection-grip:active { cursor: grabbing; }
+.collection-grip::before {
+  content: ""; position: absolute; inset: 9px 10px;
+  background-image: radial-gradient(circle, var(--color-ink-muted) 1.2px, transparent 1.6px);
+  background-size: 6px 5px;
+}
+.collection-item:hover .collection-grip::before {
+  background-image: radial-gradient(circle, var(--color-brand) 1.2px, transparent 1.6px);
+}
+.collection-remove {
+  position: absolute; top: 4px; right: 4px; z-index: 2;
+  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  border: 1px solid var(--color-line); border-radius: 4px; font-size: 12px; cursor: pointer;
+  background: color-mix(in srgb, var(--color-surface-sunken) 85%, transparent); color: var(--color-ink-muted);
+}
+.collection-remove:hover { border-color: var(--color-danger); color: var(--color-ink); }
+.collection-item-dragging { opacity: 0.4; }
+.collection-drop-before::before, .collection-drop-after::after {
+  content: ""; position: absolute; top: 0; bottom: 24px; width: 3px; border-radius: 2px; background: var(--color-brand);
+}
+.collection-drop-before::before { left: -10px; }
+.collection-drop-after::after { right: -10px; }
+
+/* Add to collection: a popover of checkboxes, and a ⋯ on browser cards. */
+.collect { position: relative; display: inline-flex; }
+.collect-list { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.collect-row { display: flex; align-items: center; gap: 8px; padding: 5px 4px; border-radius: 4px; font-size: 13px; color: var(--color-ink); cursor: pointer; }
+.collect-row:hover { background: var(--color-surface); }
+.collect-row input:disabled + span { color: var(--color-ink-muted); }
+.collect-new { display: flex; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-line); }
+.collect-note { padding: 4px; font-size: 12px; color: var(--color-ink-muted); }
+.card-menu-toggle {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; padding: 0 6px;
+  border: 1px solid var(--color-line); border-radius: 4px; background: var(--color-surface);
+  color: var(--color-ink-muted); font-size: 13px; line-height: 1; cursor: pointer;
+}
+.card-menu-toggle:hover, .card-menu-toggle[aria-expanded="true"] { border-color: var(--color-brand); color: var(--color-ink); }
+.browser-card-foot .collect { margin-left: auto; }
+.browser-card-foot .collect-popover { left: auto; right: 0; }
+
+/* The theater: the load prompt, the Collections popover and notices. */
+.load-prompt {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 12px;
+  border: 1px solid var(--color-brand); border-radius: 6px; background: var(--color-surface-raised); font-size: 14px;
+}
+.load-prompt em { font-style: italic; color: var(--color-ink); }
+.load-prompt-text { flex: 1 1 200px; min-width: 0; }
+.load-list { display: flex; flex-direction: column; gap: 4px; max-height: 300px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.load-row { display: flex; align-items: center; gap: 6px; padding: 4px; font-size: 13px; }
+.load-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.load-row button { padding: 2px 8px; font-size: 12px; }
+.theater-notices { position: fixed; left: 50%; bottom: 24px; z-index: 50; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.theater-notice {
+  padding: 8px 12px; border: 1px solid var(--color-accent); border-radius: 6px; font-size: 13px;
+  background: var(--color-surface-raised); color: var(--color-ink); box-shadow: 4px 4px 0 var(--color-surface-sunken);
+}
+.queue-source { color: var(--color-ink); text-decoration: underline; text-decoration-color: var(--color-line-strong); }
+.queue-source:hover { color: var(--color-brand); }

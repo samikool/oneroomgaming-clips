@@ -52,7 +52,15 @@ export type QueueEntry = {
   title: string;
   durationMs: number | null;
   addedBy: string;
+  /** The collection it was loaded from, shown in place of "added by". */
+  source?: QueueSource;
 };
+
+/** Where a batch of queue entries came from. */
+export type QueueSource = { collectionId: string; name: string };
+
+/** One clip of an `addMany` or `load`, as the sender's browser describes it. */
+export type QueueClip = { clipId: string; title: string; durationMs: number | null };
 
 export type RoomState = {
   clipId: string | null;
@@ -76,6 +84,8 @@ export type CommentSummary = {
   /** Milliseconds since the epoch. A Date would arrive as a string over JSON. */
   at: number;
   deleted: boolean;
+  /** Where in the clip it was written, or null when unanchored. */
+  positionMs: number | null;
 };
 
 /**
@@ -131,6 +141,8 @@ export type ServerMessage =
   | { t: "presence"; online: string[]; inRoom: string[] }
   | { t: "room"; state: RoomState }
   | { t: "room.controlRequested"; user: string }
+  // To one person in the room: how their queue command went ("Queued 2 of 5 — queue is full").
+  | { t: "room.notice"; text: string }
   | { t: "chat"; message: ChatMessage }
   | { t: "chat.backlog"; messages: ChatMessage[] }
   | { t: "reaction"; user: string; emoji: string; clipId: string | null; at: number }
@@ -148,7 +160,9 @@ export type ServerMessage =
   // Someone's name, colour, bio or picture changed, or someone new arrived.
   | { t: "profile.updated"; profile: Profile }
   // A job changed status. Grid, like every clip event; only /admin listens.
-  | { t: "job.updated"; job: AdminJob };
+  | { t: "job.updated"; job: AdminJob }
+  // A collection or its clips changed; viewers refetch. Goes to grid.
+  | { t: "collection.updated"; collectionId: string };
 
 export type ClientMessage =
   | { t: "sub"; topics: Topic[] }
@@ -180,7 +194,12 @@ export type RoomQueueCommand =
   | { t: "room.queue"; op: "move"; entryId: string; delta: -1 | 1 }
   /** Drag and drop: `toIndex` is where the entry ends up. */
   | { t: "room.queue"; op: "moveTo"; entryId: string; toIndex: number }
-  | { t: "room.queue"; op: "clear" | "playNext" };
+  | { t: "room.queue"; op: "clear" | "playNext" }
+  /**
+   * A collection's clips: `addMany` appends what fits (anyone in the room);
+   * `load` replaces the queue in one step (the host's).
+   */
+  | { t: "room.queue"; op: "addMany" | "load"; source: QueueSource | null; clips: QueueClip[] };
 
 /**
  * Which topics a message belongs to.
@@ -200,6 +219,7 @@ export function topicsFor(message: ServerMessage): Topic[] {
       return ["grid", "room"];
     case "room":
     case "room.controlRequested":
+    case "room.notice":
     case "chat":
     case "chat.backlog":
     case "reaction":
@@ -220,7 +240,10 @@ export function topicsFor(message: ServerMessage): Topic[] {
  */
 export function isEphemeral(message: ServerMessage): boolean {
   return (
-    message.t === "upload.progress" || message.t === "presence" || message.t === "reaction"
+    message.t === "upload.progress" ||
+    message.t === "presence" ||
+    message.t === "reaction" ||
+    message.t === "room.notice"
   );
 }
 
@@ -273,6 +296,38 @@ function nonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
+/** More than any collection worth loading, and far more than the queue holds. */
+const QUEUE_BATCH_MAX = 200;
+const SOURCE_NAME_MAX = 60;
+
+function parseQueueClip(value: unknown): QueueClip | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const clip = value as Record<string, unknown>;
+
+  return nonEmptyString(clip.clipId)
+    ? {
+        clipId: clip.clipId,
+        title: typeof clip.title === "string" ? clip.title.slice(0, QUEUE_TITLE_MAX) : "",
+        durationMs: typeof clip.durationMs === "number" && Number.isFinite(clip.durationMs) ? clip.durationMs : null,
+      }
+    : null;
+}
+
+function parseQueueSource(value: unknown): QueueSource | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const source = value as Record<string, unknown>;
+
+  return nonEmptyString(source.collectionId) && typeof source.name === "string"
+    ? { collectionId: source.collectionId, name: source.name.slice(0, SOURCE_NAME_MAX) }
+    : null;
+}
+
 function parseRoomQueue(message: Record<string, unknown>): RoomQueueCommand | null {
   switch (message.op) {
     case "add":
@@ -307,6 +362,20 @@ function parseRoomQueue(message: Record<string, unknown>): RoomQueueCommand | nu
     case "clear":
     case "playNext":
       return { t: "room.queue", op: message.op };
+
+    case "addMany":
+    case "load":
+      return Array.isArray(message.clips)
+        ? {
+            t: "room.queue",
+            op: message.op,
+            source: parseQueueSource(message.source),
+            clips: message.clips
+              .map(parseQueueClip)
+              .filter((clip): clip is QueueClip => clip !== null)
+              .slice(0, QUEUE_BATCH_MAX),
+          }
+        : null;
 
     default:
       return null;

@@ -3,6 +3,9 @@ import { ClipPlayer } from "@/components/clip-player";
 import { CommentForm } from "@/components/comment-form";
 import { CommentList } from "@/components/comment-list";
 import { LikeButton } from "@/components/like-button";
+import { ClipPlayheadProvider } from "@/components/clip-playhead";
+import { AddToCollection } from "@/components/add-to-collection";
+import { ShareButton } from "@/components/share-button";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getDb } from "@/db/client";
@@ -15,16 +18,22 @@ import { listUsernames } from "@/db/users";
 import { clipPublicPath } from "@/lib/media/paths";
 import { formatDuration } from "@/lib/format";
 import { requireUser } from "@/lib/session";
+import { parseStartSeconds } from "@/lib/share/timestamp";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClipPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ t?: string | string[] }>;
 }) {
   const user = await requireUser();
   const { id } = await params;
+  const { t } = await searchParams;
+  // `?t=` from a share or a comment link; junk is ignored, not an error.
+  const start = parseStartSeconds(typeof t === "string" ? t : null);
   const clip = getClip(getDb(), id);
 
   if (!clip || clip.status !== "ready") {
@@ -33,6 +42,7 @@ export default async function ClipPage({
 
   return (
     <main className="mx-auto max-w-5xl p-8">
+      <ClipPlayheadProvider>
       <Link href="/" className="text-sm text-ink-muted hover:text-ink">
         ← back
       </Link>
@@ -41,8 +51,8 @@ export default async function ClipPage({
         {formatDuration(clip.durationMs)}
         {clip.width && clip.height ? ` · ${clip.width}×${clip.height}` : ""}
       </p>
-      <ClipPlayer src={clipPublicPath(clip.id)} clipId={clip.id} />
-      <div className="mt-3 flex items-center gap-3">
+      <ClipPlayer src={clipPublicPath(clip.id)} clipId={clip.id} start={start} />
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         <LikeButton
           clipId={clip.id}
           me={user.authentikUsername}
@@ -50,6 +60,8 @@ export default async function ClipPage({
           initialLiked={activityScores(getDb()).likedBy(user.id, [clip.id]).has(clip.id)}
           isOwn={clip.uploaderId === user.id}
         />
+        <ShareButton clipId={clip.id} />
+        <AddToCollection clipId={clip.id} />
       </div>
 
       <div className="mt-4">
@@ -71,6 +83,7 @@ export default async function ClipPage({
           />
         </div>
       </section>
+      </ClipPlayheadProvider>
     </main>
   );
 }

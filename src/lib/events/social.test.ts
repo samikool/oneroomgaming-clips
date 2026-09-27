@@ -9,6 +9,7 @@ const comment: CommentRow = {
   body: "gg",
   at: 1_000,
   deleted: false,
+  positionMs: null,
 };
 
 describe("announceComment", () => {

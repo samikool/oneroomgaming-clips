@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import type { Db } from "./client";
 import {
@@ -6,6 +6,8 @@ import {
   clipParticipants,
   clips,
   clipTags,
+  collectionClips,
+  collections,
   comments,
   games,
   jobs,
@@ -197,6 +199,20 @@ export function deleteClipCascade(db: Db, id: string): void {
     tx.delete(comments).where(eq(comments.clipId, id)).run();
     tx.delete(clipTags).where(eq(clipTags.clipId, id)).run();
     tx.delete(clipParticipants).where(eq(clipParticipants.clipId, id)).run();
+    // Out of every collection, closing the gap it leaves so positions stay
+    // dense, and bumping each one's updatedAt like any other removal.
+    const memberships = tx
+      .delete(collectionClips)
+      .where(eq(collectionClips.clipId, id))
+      .returning({ collectionId: collectionClips.collectionId, position: collectionClips.position })
+      .all();
+    for (const { collectionId, position } of memberships) {
+      tx.update(collectionClips)
+        .set({ position: sql`${collectionClips.position} - 1` })
+        .where(and(eq(collectionClips.collectionId, collectionId), gt(collectionClips.position, position)))
+        .run();
+      tx.update(collections).set({ updatedAt: new Date() }).where(eq(collections.id, collectionId)).run();
+    }
     tx.delete(jobs).where(eq(jobs.clipId, id)).run();
     tx.delete(mediaFiles).where(eq(mediaFiles.clipId, id)).run();
     tx.run(sql`DELETE FROM clip_search WHERE clip_id = ${id}`);

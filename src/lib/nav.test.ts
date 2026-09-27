@@ -1,5 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import { glideFrames, glideStops, isActiveNav, navIndex, tabsBetween, underlineBox } from "@/lib/nav";
+import { NAV_LINKS, glideFrames, glideStops, isActiveNav, navIndex, tabsBetween, underlineBox } from "@/lib/nav";
+
+describe("NAV_LINKS", () => {
+  it("puts Collections between Theater and Upload", () => {
+    expect(NAV_LINKS.map((l) => l.label)).toEqual(["Clips", "Theater", "Collections", "Upload", "Changelog"]);
+  });
+});
 
 describe("isActiveNav", () => {
   it("matches a page to its own link", () => {
@@ -8,6 +14,7 @@ describe("isActiveNav", () => {
 
   it("matches sub-paths", () => {
     expect(isActiveNav("/changelog/0.1.1", "/changelog")).toBe(true);
+    expect(isActiveNav("/collections/X", "/collections")).toBe(true);
   });
 
   it("does not match a longer name that shares the prefix", () => {
@@ -26,8 +33,10 @@ describe("navIndex", () => {
     expect(navIndex("/")).toBe(0);
     expect(navIndex("/clips/01ABC")).toBe(0);
     expect(navIndex("/theater")).toBe(1);
-    expect(navIndex("/upload")).toBe(2);
-    expect(navIndex("/changelog")).toBe(3);
+    expect(navIndex("/collections")).toBe(2);
+    expect(navIndex("/collections/01K")).toBe(2);
+    expect(navIndex("/upload")).toBe(3);
+    expect(navIndex("/changelog")).toBe(4);
   });
 
   it("has no position for a page outside the header", () => {
@@ -37,8 +46,9 @@ describe("navIndex", () => {
 
 describe("tabsBetween", () => {
   it("lists the tabs passed on the way, in travel order", () => {
-    expect(tabsBetween(3, 0)).toEqual(["Upload", "Theater"]);
-    expect(tabsBetween(0, 3)).toEqual(["Theater", "Upload"]);
+    expect(tabsBetween(3, 0)).toEqual(["Collections", "Theater"]);
+    expect(tabsBetween(0, 3)).toEqual(["Theater", "Collections"]);
+    expect(tabsBetween(0, 4)).toEqual(["Theater", "Collections", "Upload"]);
   });
 
   it("is empty for neighbouring tabs", () => {
@@ -60,6 +70,7 @@ describe("underlineBox", () => {
 describe("glideStops", () => {
   it("stops under every tab on the way, ending on the target", () => {
     expect(glideStops(0, 3)).toEqual([1, 2, 3]);
+    expect(glideStops(0, 4)).toEqual([1, 2, 3, 4]);
     expect(glideStops(3, 1)).toEqual([2, 1]);
   });
 

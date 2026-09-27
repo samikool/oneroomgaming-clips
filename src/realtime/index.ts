@@ -174,8 +174,21 @@ function handleRoomMessage(username: string, message: ClientMessage): void {
       // as room.control.
       {
         const before = room.state.clipId;
+        room.lastAdded = null;
+        const changed = room.queue(username, message);
 
-        if (room.queue(username, message)) {
+        // The one queue outcome that is answered: a collection the limit cut
+        // short. Only the sender is told; everyone else just sees the queue.
+        const tally = room.lastAdded as { requested: number; added: number } | null;
+        if ((message.op === "addMany" || message.op === "load") && tally && tally.added < tally.requested) {
+          const text =
+            tally.added > 0
+              ? `Queued ${tally.added} of ${tally.requested} — queue is full`
+              : "Queue is full — nothing added";
+          hub.sendTo(username, { t: "room.notice", text });
+        }
+
+        if (changed) {
           publishRoom();
           reportIfStarted(username, before);
         }

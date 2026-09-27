@@ -11,6 +11,12 @@ import { dismissRequest, INITIAL_ROOM_VIEW, reduceRoom, type RoomView } from "./
 /** Long enough to read, short enough not to sit on the gameplay. */
 const REACTION_LIFETIME_MS = 3_000;
 
+/** How long a notice ("Queued 2 of 5 — queue is full") stays up. */
+const NOTICE_LIFETIME_MS = 4_000;
+
+/** A short message for this person only: from the room, or from this browser. */
+export type Notice = { key: number; text: string };
+
 /** A reaction on its way up the screen. `lane` keeps two from overlapping. */
 export type FloatingReaction = { key: string; emoji: string; user: string; lane: number };
 
@@ -19,8 +25,11 @@ export type Room = {
   chat: ChatMessage[];
   reactions: FloatingReaction[];
   clock: ServerClock;
+  notices: Notice[];
   send(message: ClientMessage): void;
   dismiss(user: string): void;
+  /** Shows a notice in the same place as the room's own. */
+  notify(text: string): void;
 };
 
 /**
@@ -36,6 +45,14 @@ export function useRoom(): Room {
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [reactions, setReactions] = useState<FloatingReaction[]>([]);
   const reactionSeq = useRef(0);
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const noticeSeq = useRef(0);
+  const notify = useCallback((text: string) => {
+    noticeSeq.current += 1;
+    const key = noticeSeq.current;
+    setNotices((current) => [...current.slice(-3), { key, text }]);
+    setTimeout(() => setNotices((current) => current.filter((n) => n.key !== key)), NOTICE_LIFETIME_MS);
+  }, []);
   const clock = useMemo(() => new ServerClock(), []);
   const sendRef = useRef(send);
   sendRef.current = send;
@@ -52,6 +69,10 @@ export function useRoom(): Room {
         sampler.receive(message);
         setView((current) => reduceRoom(current, message, Date.now()));
         setChat((current) => reduceChat(current, message));
+
+        if (message.t === "room.notice") {
+          notify(message.text);
+        }
 
         if (message.t === "reaction") {
           reactionSeq.current += 1;
@@ -75,11 +96,11 @@ export function useRoom(): Room {
       unregister();
       sampler.stop();
     };
-  }, [register, clock]);
+  }, [register, clock, notify]);
 
   const dismiss = useCallback((user: string) => {
     setView((current) => dismissRequest(current, user));
   }, []);
 
-  return { view, chat, reactions, clock, send, dismiss };
+  return { view, chat, reactions, clock, notices, send, dismiss, notify };
 }

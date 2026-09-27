@@ -67,7 +67,7 @@ export async function onComment(db: Db, comment: CommentRow): Promise<void> {
       mentioned: extractMentions(comment.body, knownUsernames(db), comment.user),
     },
     comment.clipId,
-    { commentId: comment.id, source: "comment" },
+    { commentId: comment.id, positionMs: comment.positionMs, source: "comment" },
   );
 }
 

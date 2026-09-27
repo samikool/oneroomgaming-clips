@@ -17,6 +17,8 @@ export type CommentRow = {
   body: string;
   at: number;
   deleted: boolean;
+  /** Where in the clip the comment was written, or null when unanchored. */
+  positionMs: number | null;
 };
 
 /** What a deleted comment says in place of its body. */
@@ -28,6 +30,7 @@ type Joined = {
   body: string;
   createdAt: Date;
   deletedAt: Date | null;
+  positionMs: number | null;
   username: string | null;
 };
 
@@ -43,6 +46,7 @@ function toRow(row: Joined): CommentRow {
     user: row.username ?? "unknown",
     at: row.createdAt.getTime(),
     deleted,
+    positionMs: row.positionMs,
   };
 }
 
@@ -52,12 +56,13 @@ const SELECTION = {
   body: comments.body,
   createdAt: comments.createdAt,
   deletedAt: comments.deletedAt,
+  positionMs: comments.positionMs,
   username: users.authentikUsername,
 };
 
 export function addComment(
   db: Db,
-  input: { clipId: string; userId: string; body: string },
+  input: { clipId: string; userId: string; body: string; positionMs?: number | null },
 ): CommentRow {
   const id = ulid();
   const createdAt = new Date();
@@ -70,9 +75,8 @@ export function addComment(
         clipId: input.clipId,
         userId: input.userId,
         body: input.body,
-        // Nullable and deliberately unused. It exists so playhead-anchored
-        // comments become a UI change with no migration.
-        positionMs: null,
+        // The playhead when the comment was written; null when unanchored.
+        positionMs: input.positionMs ?? null,
         createdAt,
         deletedAt: null,
       })
