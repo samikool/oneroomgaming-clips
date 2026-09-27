@@ -18,6 +18,7 @@ import { SidePanel } from "./side-panel";
 import { TheaterChat } from "./theater-chat";
 import { ClipBrowser } from "./browser/clip-browser";
 import { useTheaterCardActions } from "./theater-grid";
+import { CollectionsButton, LoadPrompt } from "./load-collection";
 import { TheaterQueue } from "./theater-queue";
 import { UserName } from "./user-name";
 import { WatchingList } from "./watching-list";
@@ -53,7 +54,7 @@ export function Theater({
   initialPages: Partial<Record<Sort, Page>>;
   options: BrowseOptions;
 }) {
-  const { view, chat, reactions, clock, send, dismiss } = useRoom();
+  const { view, chat, reactions, clock, send, dismiss, notices, notify } = useRoom();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controllerRef = useRef<SyncController | null>(null);
   const [tab, setTab] = useState<Tab>("queue");
@@ -244,6 +245,8 @@ export function Theater({
         )}
       </div>
 
+      <LoadPrompt joined={joined} iAmHost={iAmHost} send={send} notify={notify} />
+
       <div className="theater-layout">
         {/* Phones only: the video sits first (CSS order), then these tabs pick
             which panel shows underneath. */}
@@ -395,8 +398,13 @@ export function Theater({
           me={me}
           options={options}
           cardActions={cardActions}
+          barExtras={<CollectionsButton joined={joined} iAmHost={iAmHost} send={send} notify={notify} />}
         />
       </section>
+
+      <div className="theater-notices" role="status" aria-live="polite">
+        {notices.map((notice) => <p key={notice.key} className="theater-notice">{notice.text}</p>)}
+      </div>
 
       {iAmHost && view.requests.length > 0 && (
         <div className="theater-requests" role="status">

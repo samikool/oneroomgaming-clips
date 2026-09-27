@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { QueueEntry, RoomQueueCommand } from "@/lib/realtime/envelope";
 import { dropTarget, gapAtPointer } from "@/lib/theater/queue-drag";
@@ -160,7 +161,11 @@ export function TheaterQueue({
                   <p className="truncate text-sm text-ink">{entry.title}</p>
                   {/* No link: the row is a drag target, and a link would fight the pointer drag. */}
                   <p className="truncate text-xs text-ink-muted">
-                    added by <UserName username={entry.addedBy} variant="compact" withAvatar link={false} />
+                    {entry.source ? (
+                      <>from <Link className="queue-source" href={`/collections/${entry.source.collectionId}`}>{entry.source.name}</Link></>
+                    ) : (
+                      <>added by <UserName username={entry.addedBy} variant="compact" withAvatar link={false} /></>
+                    )}
                   </p>
                 </div>
                 {iAmHost && (

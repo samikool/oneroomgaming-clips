@@ -181,6 +181,38 @@ export const notifications = sqliteTable(
   (t) => [index("notifications_recipient_idx").on(t.recipientId, t.readAt, t.updatedAt)],
 );
 
+/** A named list of clips. Visible to everyone; `open` lets anyone add. */
+export const collections = sqliteTable(
+  "collections",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id").notNull().references(() => users.id),
+    name: text("name").notNull(),
+    description: text("description"),
+    open: integer("open", { mode: "boolean" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    /** Bumped on every change, including clip add, remove and reorder. */
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("collections_owner_idx").on(t.ownerId), index("collections_updated_idx").on(t.updatedAt)],
+);
+
+/** Membership, in order. `position` is 0-based and kept dense. */
+export const collectionClips = sqliteTable(
+  "collection_clips",
+  {
+    collectionId: text("collection_id").notNull().references(() => collections.id),
+    clipId: text("clip_id").notNull().references(() => clips.id),
+    position: integer("position").notNull(),
+    addedBy: text("added_by").notNull().references(() => users.id),
+    addedAt: integer("added_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.collectionId, t.clipId] }),
+    index("collection_clips_order_idx").on(t.collectionId, t.position),
+  ],
+);
+
 export const jobs = sqliteTable(
   "jobs",
   {

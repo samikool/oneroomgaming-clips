@@ -7,6 +7,8 @@ import { removeComment } from "@/app/clips/[id]/actions";
 import type { CommentRow } from "@/db/comments";
 import { TOMBSTONE } from "@/db/comments";
 import { useRealtime } from "@/lib/realtime/use-realtime";
+import { formatClock, shareUrl } from "@/lib/share/timestamp";
+import { useClipPlayhead } from "./clip-playhead";
 
 /**
  * Server-rendered comments with live ones merged on top.
@@ -25,6 +27,7 @@ export function CommentList({
   me: string;
 }) {
   const [comments, setComments] = useState<CommentRow[]>(initial);
+  const { seek } = useClipPlayhead();
 
   useRealtime(["grid"], (message) => {
     if (message.t !== "comment.added" || message.comment.clipId !== clipId) {
@@ -48,6 +51,22 @@ export function CommentList({
         <li key={comment.id} className="comment">
           <p className="text-xs">
             <UserName username={comment.user} />
+            {comment.positionMs !== null && !comment.deleted && (
+              <>
+                {" · "}
+                <a
+                  className="comment-time"
+                  href={shareUrl("", clipId, Math.floor(comment.positionMs / 1000))}
+                  onClick={(event) => {
+                    // Seek in place; a modified click still opens the link.
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+                    if (seek(comment.positionMs!)) event.preventDefault();
+                  }}
+                >
+                  {formatClock(comment.positionMs)}
+                </a>
+              </>
+            )}
           </p>
           <p className={comment.deleted ? "text-sm italic text-ink-muted" : "text-sm text-ink"}>
             {comment.deleted ? comment.body : <MentionText text={comment.body} />}

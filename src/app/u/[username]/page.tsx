@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getDb } from "@/db/client";
 import { getProfile } from "@/db/profiles";
+import { listCollections } from "@/db/collections";
 import { listAppearancesOf, listCommentsBy, listUploadsBy } from "@/db/profile-activity";
 import { ProfileHeader } from "@/components/profile-header";
 import { ProfileTabs } from "@/components/profile-tabs";
@@ -27,6 +28,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
         uploads={listUploadsBy(db, profile.userId).map(toSummary)}
         appearances={listAppearancesOf(db, profile.userId).map(toSummary)}
         comments={listCommentsBy(db, profile.userId)}
+        collections={listCollections(db, { ownerId: profile.userId })}
         now={Date.now()}
       />
     </main>

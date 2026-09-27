@@ -1,4 +1,11 @@
-import type { ClientMessage, QueueEntry, RoomQueueCommand, RoomState } from "@/lib/realtime/envelope";
+import type {
+  ClientMessage,
+  QueueClip,
+  QueueEntry,
+  QueueSource,
+  RoomQueueCommand,
+  RoomState,
+} from "@/lib/realtime/envelope";
 import { INITIAL_ROOM_STATE, positionNow } from "@/lib/realtime/room-state";
 import { RateLimiter } from "./rate-limit";
 
@@ -37,6 +44,11 @@ export class Room {
   readonly #requestLimiter: RateLimiter;
   readonly #now: () => number;
   #nextEntry = 1;
+  /**
+   * How the last `addMany` or `load` went, so the caller can tell the sender
+   * when the queue's limit cut it short. Null until one is attempted.
+   */
+  lastAdded: { requested: number; added: number } | null = null;
 
   constructor(now: () => number = Date.now) {
     this.#now = now;
@@ -169,8 +181,46 @@ export class Room {
     });
   }
 
+  #entries(user: string, clips: QueueClip[], source: QueueSource | null): QueueEntry[] {
+    return clips.map((clip) => ({
+      entryId: `q${this.#nextEntry++}`,
+      clipId: clip.clipId,
+      title: clip.title,
+      durationMs: clip.durationMs,
+      addedBy: user,
+      ...(source && { source }),
+    }));
+  }
+
   queue(user: string, command: RoomQueueCommand): boolean {
     const { queue } = this.#state;
+
+    if (command.op === "addMany") {
+      // The same rule as `add`: anyone in the room.
+      if (!this.#members.has(user)) {
+        return false;
+      }
+
+      const fits = command.clips.slice(0, Math.max(0, QUEUE_LIMIT - queue.length));
+      this.lastAdded = { requested: command.clips.length, added: fits.length };
+
+      return fits.length === 0
+        ? false
+        : this.#commit({ queue: [...queue, ...this.#entries(user, fits, command.source)] });
+    }
+
+    if (command.op === "load") {
+      // Host only, and never an empty list: that would just be `clear`.
+      if (this.#state.hostUserId !== user || command.clips.length === 0) {
+        return false;
+      }
+
+      const fits = command.clips.slice(0, QUEUE_LIMIT);
+      this.lastAdded = { requested: command.clips.length, added: fits.length };
+
+      // One commit, so nobody ever sees the empty queue in between.
+      return this.#commit({ queue: this.#entries(user, fits, command.source) });
+    }
 
     if (command.op === "add") {
       if (!this.#members.has(user) || queue.length >= QUEUE_LIMIT) {

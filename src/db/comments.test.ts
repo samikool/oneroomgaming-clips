@@ -44,6 +44,18 @@ describe("addComment", () => {
   });
 });
 
+describe("addComment at the playhead", () => {
+  it("stores the playhead position when given", () => {
+    const c = addComment(db, { clipId, userId: samId, body: "here", positionMs: 42_000 });
+    expect(getComment(db, c.id)?.positionMs).toBe(42_000);
+  });
+
+  it("leaves it null when not", () => {
+    const c = addComment(db, { clipId, userId: samId, body: "here" });
+    expect(getComment(db, c.id)?.positionMs).toBeNull();
+  });
+});
+
 describe("listComments", () => {
   it("is empty for a clip nobody has commented on", () => {
     expect(listComments(db, clipId)).toEqual([]);

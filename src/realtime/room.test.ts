@@ -604,3 +604,71 @@ describe("Room — queue", () => {
     expect(room.state.queue).toEqual([]);
   });
 });
+
+describe("Room — addMany and load", () => {
+  const many = (n: number) => Array.from({ length: n }, (_, i) => ({ clipId: `c${i}`, title: `t${i}`, durationMs: 1000 }));
+  const source = { collectionId: "K1", name: "Kobe fails" };
+
+  function roomWith(members: string[], { host }: { host: string }) {
+    const { room } = roomAt();
+    room.join(host);
+    for (const m of members) room.join(m);
+    room.claimHost(host);
+    return room;
+  }
+
+  function fillQueue(room: Room, user: string, n: number) {
+    for (let i = 0; i < n; i++) {
+      room.queue(user, { t: "room.queue", op: "add", clipId: `f${i}`, title: `f${i}`, durationMs: 1000 });
+    }
+  }
+
+  it("anyone in the room appends what fits and the room reports how many", () => {
+    const room = roomWith(["sam", "kobe"], { host: "sam" });
+    fillQueue(room, "sam", 30);
+    expect(room.queue("kobe", { t: "room.queue", op: "addMany", source, clips: many(40) })).toBe(true);
+    expect(room.state.queue).toHaveLength(QUEUE_LIMIT);
+    expect(room.lastAdded).toEqual({ requested: 40, added: 20 });
+    expect(room.state.queue.at(-1)).toMatchObject({ addedBy: "kobe", source });
+  });
+
+  it("appends in one commit", () => {
+    const room = roomWith(["sam", "kobe"], { host: "sam" });
+    const rev = room.state.rev;
+    room.queue("kobe", { t: "room.queue", op: "addMany", source, clips: many(3) });
+    expect(room.state.rev).toBe(rev + 1);
+    expect(room.state.queue.map((e) => e.clipId)).toEqual(["c0", "c1", "c2"]);
+    expect(new Set(room.state.queue.map((e) => e.entryId)).size).toBe(3);
+  });
+
+  it("a full queue refuses addMany", () => {
+    const room = roomWith(["sam"], { host: "sam" });
+    fillQueue(room, "sam", QUEUE_LIMIT);
+    expect(room.queue("sam", { t: "room.queue", op: "addMany", source, clips: many(3) })).toBe(false);
+    expect(room.lastAdded).toEqual({ requested: 3, added: 0 });
+  });
+
+  it("load is host-only and replaces the queue in a single commit", () => {
+    const room = roomWith(["sam", "kobe"], { host: "sam" });
+    fillQueue(room, "sam", 5);
+    expect(room.queue("kobe", { t: "room.queue", op: "load", source, clips: many(3) })).toBe(false);
+    const rev = room.state.rev;
+    expect(room.queue("sam", { t: "room.queue", op: "load", source, clips: many(3) })).toBe(true);
+    expect(room.state.queue.map((e) => e.clipId)).toEqual(["c0", "c1", "c2"]);
+    expect(room.state.rev).toBe(rev + 1);
+    expect(room.lastAdded).toEqual({ requested: 3, added: 3 });
+  });
+
+  it("load keeps at most QUEUE_LIMIT and a null source leaves entries unsourced", () => {
+    const room = roomWith(["sam"], { host: "sam" });
+    room.queue("sam", { t: "room.queue", op: "load", source: null, clips: many(60) });
+    expect(room.state.queue).toHaveLength(QUEUE_LIMIT);
+    expect(room.lastAdded).toEqual({ requested: 60, added: QUEUE_LIMIT });
+    expect(room.state.queue[0].source).toBeUndefined();
+  });
+
+  it("non-members cannot addMany", () => {
+    const room = roomWith(["sam"], { host: "sam" });
+    expect(room.queue("stranger", { t: "room.queue", op: "addMany", source, clips: many(1) })).toBe(false);
+  });
+});

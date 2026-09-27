@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./collections.css";
 
 @theme {
   /* One Room Gaming palette, sampled from the logo. Nothing outside this block

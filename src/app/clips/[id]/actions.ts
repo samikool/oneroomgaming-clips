@@ -7,6 +7,7 @@ import { getClipMetadata, setClipGame, setClipParticipants, setClipTags } from "
 import { onComment, onParticipantsChanged } from "@/lib/social/events";
 import { normalizeChatText } from "@/lib/realtime/chat";
 import { requireUser } from "@/lib/session";
+import { parsePositionMs } from "@/lib/share/timestamp";
 
 /**
  * The first server actions in this repo.
@@ -25,7 +26,9 @@ export async function postComment(clipId: string, formData: FormData): Promise<v
   }
 
   const db = getDb();
-  const comment = addComment(db, { clipId, userId: user.id, body });
+  // The playhead when it was written, when the form sent one.
+  const positionMs = parsePositionMs(formData.get("positionMs"));
+  const comment = addComment(db, { clipId, userId: user.id, body, positionMs });
   revalidatePath(`/clips/${clipId}`);
   // Announces the comment, then notifies the uploader, participants and anyone mentioned.
   await onComment(db, comment);

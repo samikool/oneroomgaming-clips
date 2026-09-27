@@ -3,16 +3,19 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ClipGrid } from "./clip-grid";
+import { CollectionGrid } from "./collection-card";
+import type { CollectionSummary } from "@/db/collections";
 import type { ClipSummary } from "@/lib/realtime/envelope";
 import type { ProfileComment } from "@/db/profile-activity";
 import { formatAgo } from "@/lib/format";
 
-type Tab = "uploads" | "appearances" | "comments";
+type Tab = "uploads" | "appearances" | "comments" | "collections";
 
 const TABS: [Tab, string][] = [
   ["uploads", "Uploads"],
   ["appearances", "Appears in"],
   ["comments", "Comments"],
+  ["collections", "Collections"],
 ];
 
 /**
@@ -23,11 +26,14 @@ export function ProfileTabs({
   uploads,
   appearances,
   comments,
+  collections,
   now,
 }: {
   uploads: ClipSummary[];
   appearances: ClipSummary[];
   comments: ProfileComment[];
+  /** The collections they own. */
+  collections: CollectionSummary[];
   /** The server's clock at render, so "5m ago" reads the same on both sides of hydration. */
   now: number;
 }) {
@@ -36,6 +42,7 @@ export function ProfileTabs({
     uploads: uploads.length,
     appearances: appearances.length,
     comments: comments.length,
+    collections: collections.length,
   };
 
   return (
@@ -56,7 +63,9 @@ export function ProfileTabs({
       </div>
 
       <div className="mt-6" role="tabpanel">
-        {tab === "comments" ? (
+        {tab === "collections" ? (
+          <CollectionGrid collections={collections} empty="Nothing here yet." />
+        ) : tab === "comments" ? (
           comments.length === 0 ? (
             <Empty />
           ) : (

@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Scope } from "@/db/browse";
 import type { ClipSummary } from "@/lib/realtime/envelope";
+import { AddToCollection } from "../add-to-collection";
 import { ClipTile } from "../clip-card";
 import { PersonChip } from "../person-chip";
 import { useBrowseActions } from "./browse-context";
@@ -54,6 +55,7 @@ export function BrowserCard({
           {clip.game.name}
         </button>
       )}
+      <AddToCollection clipId={clip.id} compact />
     </div>
   );
 
