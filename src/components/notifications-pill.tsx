@@ -98,7 +98,11 @@ export function NotificationsPill({ unread, open, onToggle }: { unread: number; 
       aria-label={unread > 0 ? `${unread} unread notifications` : "Notifications"}
       onClick={onToggle}
     >
-      <span aria-hidden="true">🔔</span>
+      {/* Drawn, not the 🔔 emoji, so it takes the pill's colour like the other icons. */}
+      <svg viewBox="0 0 16 16" width="14" height="14" className="shrink-0" aria-hidden="true">
+        <path d="M8 1.5a1 1 0 0 1 1 1v.6A4.5 4.5 0 0 1 12.5 7.5v3l1.5 2H2l1.5-2v-3A4.5 4.5 0 0 1 7 3.1v-.6a1 1 0 0 1 1-1z" fill="currentColor" />
+        <path d="M6.25 13.5h3.5a1.75 1.75 0 0 1-3.5 0z" fill="currentColor" />
+      </svg>
       {unread > 0 && <span className="font-pixel text-[10px]">{unread}</span>}
     </button>
   );

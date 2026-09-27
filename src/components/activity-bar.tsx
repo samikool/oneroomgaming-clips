@@ -140,7 +140,10 @@ function TheaterPill({ me, open, onToggle }: { me: string; open: boolean; onTogg
       aria-expanded={open}
       onClick={onToggle}
     >
-      <span aria-hidden="true">▶</span>
+      {/* Drawn, not the ▶ character, which many systems render as an emoji. */}
+      <svg viewBox="0 0 16 16" width="12" height="12" className="shrink-0" aria-hidden="true">
+        <path d="M4 2 L14 8 L4 14 Z" fill="currentColor" />
+      </svg>
       <span className="truncate">{label}</span>
     </button>
   );
