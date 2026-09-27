@@ -3,6 +3,7 @@ import { ulid } from "ulid";
 import type { Db } from "./client";
 import { users, type User } from "./schema";
 import type { AuthenticatedUser } from "@/lib/auth";
+import { reindexUserClips } from "./search";
 
 /** Upserts the request's identity, saying whether this is the first sight of them. */
 export function upsertUserTracked(
@@ -27,6 +28,11 @@ export function upsertUserTracked(
       .where(eq(users.id, existing.id))
       .returning()
       .get();
+
+    // Authentik sent a new name; search matches on it.
+    if (user.displayName !== existing.displayName) {
+      reindexUserClips(db, user.id);
+    }
 
     return { user, created: false };
   }

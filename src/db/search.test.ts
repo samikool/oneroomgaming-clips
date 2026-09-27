@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createDb, type Db } from "@/db/client";
 import { upsertUser } from "@/db/users";
+import { updateProfile } from "@/db/profiles";
 import { createClip, deleteClipCascade } from "@/db/clips";
 import { addComment, softDeleteComment } from "@/db/comments";
 import { setClipGame, setClipParticipants, setClipTags } from "@/db/metadata";
@@ -67,5 +68,28 @@ describe("search index", () => {
     expect(ids("rebuilt")).toEqual([]);
     expect(reindexAll(db)).toBe(1);
     expect(ids("rebuilt")).toEqual([c.id]);
+  });
+
+  it("finds clips by a person's chosen name, and follows a rename", () => {
+    const c = make("round three");
+    updateProfile(db, "sam", { name: "Big Sammy" });
+    expect(ids("sammy")).toEqual([c.id]);
+    updateProfile(db, "sam", { name: "Tiny Tim" });
+    expect(ids("sammy")).toEqual([]);
+    expect(ids("tiny")).toEqual([c.id]);
+  });
+
+  it("follows a participant's rename too", () => {
+    const c = make("round four");
+    setClipParticipants(db, c.id, ["kobe"]);
+    updateProfile(db, "kobe", { name: "Mamba" });
+    expect(ids("mamba")).toEqual([c.id]);
+  });
+
+  it("follows a new name from Authentik", () => {
+    const c = make("round five");
+    upsertUser(db, { username: "sam", email: null, displayName: "Samuel Renamed" });
+    expect(ids("renamed")).toEqual([c.id]);
+    expect(ids("morgan")).toEqual([]);
   });
 });

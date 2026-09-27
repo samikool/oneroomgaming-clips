@@ -15,7 +15,6 @@ import {
   type Clip,
   type ClipStatus,
 } from "./schema";
-import type { ClipFilters } from "@/lib/filters";
 import type { MediaInfo } from "@/lib/media/probe";
 import { reindexClip } from "./search";
 
@@ -137,6 +136,21 @@ export function listReadyClips(db: Db, limit = 100): Clip[] {
     .all();
 }
 
+/**
+ * id → thumbnail of every ready clip: all the theater's queue needs to show a
+ * picture beside an entry, without shipping the whole library to the page.
+ */
+export function listReadyThumbs(db: Db): Record<string, string | null> {
+  return Object.fromEntries(
+    db
+      .select({ id: clips.id, thumbPath: clips.thumbPath })
+      .from(clips)
+      .where(eq(clips.status, "ready"))
+      .all()
+      .map((row) => [row.id, row.thumbPath]),
+  );
+}
+
 export function listAllClips(db: Db, limit = 100): Clip[] {
   return db.select().from(clips).orderBy(desc(clips.createdAt)).limit(limit).all();
 }
@@ -184,6 +198,14 @@ export function deleteClipCascade(db: Db, id: string): void {
     tx.delete(clips).where(eq(clips.id, id)).run();
   });
 }
+
+/** One value per field; the old grid's filters. The browser uses `BrowseQuery`. */
+export type ClipFilters = {
+  tag?: string;
+  game?: string;
+  uploader?: string;
+  participant?: string;
+};
 
 /**
  * The grid's query. Filters AND together, newest first.
@@ -275,10 +297,6 @@ export type GridClip = Clip & {
  * subquery-per-filter shape is what keeps a multi-tag clip from appearing
  * twice, and widening it would undo that.
  */
-export function listClipsForGrid(db: Db, filters: ClipFilters = {}, limit = 100): GridClip[] {
-  return hydrateGridClips(db, listClips(db, filters, limit));
-}
-
 /** Adds the uploader's username and the game to each row, in the order given. */
 export function hydrateGridClips(db: Db, rows: Clip[]): GridClip[] {
   if (rows.length === 0) {

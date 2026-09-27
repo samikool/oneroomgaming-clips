@@ -59,5 +59,10 @@ export function serializeBrowseQuery(query: BrowseQuery, { includeSeed = false }
 }
 
 export function isFiltered(query: BrowseQuery): boolean {
-  return query.q.length > 0 || query.games.length > 0 || query.tags.length > 0 || query.people.length > 0;
+  return query.q.trim().length > 0 || query.games.length > 0 || query.tags.length > 0 || query.people.length > 0;
+}
+
+/** A link to home's browser filtered to one game, tag or person, for chips outside the browser. */
+export function filterHref(field: "games" | "tags" | "people", value: string): string {
+  return `/?${serializeBrowseQuery({ sort: "new", q: "", games: [], tags: [], people: [], seed: 0, [field]: [value] })}`;
 }

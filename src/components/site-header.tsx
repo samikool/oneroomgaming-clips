@@ -9,6 +9,7 @@ import { UserName } from "@/components/user-name";
 import {
   type BarBox,
   barStyle,
+  currentBox,
   glideFrames,
   glideStops,
   isActiveNav,
@@ -137,12 +138,4 @@ export function SiteHeader({ me, showSignOut }: { me: string; showSignOut: boole
       </div>
     </header>
   );
-}
-
-/** Where the bar is this instant, part way through a glide or not. */
-function currentBox(el: HTMLElement): BarBox {
-  const style = getComputedStyle(el);
-  const matrix = new DOMMatrixReadOnly(style.transform);
-
-  return { x: matrix.m41, y: matrix.m42, width: parseFloat(style.width) };
 }

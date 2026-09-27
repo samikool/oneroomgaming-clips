@@ -32,17 +32,16 @@ function documentFor(db: Db, clipId: string) {
       .all()
       .map((row) => row.id),
   ];
-  // Username plus the name people actually see. Identity (0.4.0 spec 1) adds
-  // profile_name; the integration step extends this select to include it.
+  // Username, the Authentik name, and the name they chose for themselves.
   const people =
     personIds.length === 0
       ? []
       : db
-          .select({ username: users.authentikUsername, displayName: users.displayName })
+          .select({ username: users.authentikUsername, displayName: users.displayName, profileName: users.profileName })
           .from(users)
           .where(inArray(users.id, personIds))
           .all()
-          .flatMap((u) => [u.username, u.displayName ?? ""]);
+          .flatMap((u) => [u.username, u.displayName ?? "", u.profileName ?? ""]);
 
   const commentText = db
     .select({ body: comments.body })
@@ -70,6 +69,20 @@ export function reindexClip(db: Db, clipId: string): void {
       sql`INSERT INTO clip_search (clip_id, title, game, tags, people, comments)
           VALUES (${clipId}, ${doc.title}, ${doc.game}, ${doc.tags}, ${doc.people}, ${doc.comments})`,
     );
+  }
+}
+
+/** A name changed: every clip this person uploaded or appears in. */
+export function reindexUserClips(db: Db, userId: string): void {
+  const uploaded = db.select({ id: clips.id }).from(clips).where(eq(clips.uploaderId, userId)).all();
+  const appearsIn = db
+    .select({ id: clipParticipants.clipId })
+    .from(clipParticipants)
+    .where(eq(clipParticipants.userId, userId))
+    .all();
+
+  for (const id of new Set([...uploaded, ...appearsIn].map((row) => row.id))) {
+    reindexClip(db, id);
   }
 }
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { saveGame, saveParticipants, saveTags } from "@/app/clips/[id]/actions";
 import type { ClipMetadata } from "@/db/metadata";
-import { withFilter } from "@/lib/filters";
+import { filterHref } from "@/lib/browse/query";
 import { PersonChip } from "./person-chip";
 
 /**
@@ -95,12 +95,12 @@ export function ClipMetadataPanel({
   return (
     <div className="metadata-chips">
       {metadata.game && (
-        <Link className="chip-button" href={withFilter({}, "game", metadata.game.slug)}>
+        <Link className="chip-button" href={filterHref("games", metadata.game.slug)}>
           {metadata.game.name}
         </Link>
       )}
       {metadata.tags.map((tag) => (
-        <Link key={tag} className="chip-button" href={withFilter({}, "tag", tag)}>
+        <Link key={tag} className="chip-button" href={filterHref("tags", tag)}>
           #{tag}
         </Link>
       ))}
@@ -109,7 +109,7 @@ export function ClipMetadataPanel({
           key={user}
           username={user}
           className="chip-button"
-          filterHref={withFilter({}, "participant", user)}
+          filterHref={filterHref("people", user)}
         />
       ))}
       {nothingSet && <span className="text-sm text-ink-muted">No tags yet.</span>}

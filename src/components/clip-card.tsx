@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { withFilter } from "@/lib/filters";
+import { filterHref } from "@/lib/browse/query";
 import type { ClipStatus } from "@/db/schema";
 import { formatDuration } from "@/lib/format";
 import { PersonChip } from "./person-chip";
@@ -88,11 +88,11 @@ export function ClipCard({
         <PersonChip
           username={clip.uploader}
           className="meta-chip"
-          filterHref={withFilter({}, "uploader", clip.uploader)}
+          filterHref={filterHref("people", clip.uploader)}
         />
       )}
       {clip.game && (
-        <Link className="meta-chip" href={withFilter({}, "game", clip.game.slug)}>
+        <Link className="meta-chip" href={filterHref("games", clip.game.slug)}>
           {clip.game.name}
         </Link>
       )}

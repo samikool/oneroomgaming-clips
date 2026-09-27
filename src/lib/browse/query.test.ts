@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { isFiltered, parseBrowseQuery, serializeBrowseQuery } from "./query";
+import { filterHref, isFiltered, parseBrowseQuery, serializeBrowseQuery } from "./query";
 
 describe("parseBrowseQuery", () => {
   it("defaults to New with nothing set", () => {
@@ -47,10 +47,22 @@ describe("serializeBrowseQuery", () => {
 });
 
 describe("isFiltered", () => {
+  it("does not count a search box holding only spaces", () => {
+    expect(isFiltered({ ...parseBrowseQuery({}), q: "   " })).toBe(false);
+  });
+
   it("is true for a search or any filter", () => {
     expect(isFiltered(parseBrowseQuery({}))).toBe(false);
     expect(isFiltered(parseBrowseQuery({ q: "x" }))).toBe(true);
     expect(isFiltered(parseBrowseQuery({ tag: "x" }))).toBe(true);
     expect(isFiltered(parseBrowseQuery({ sort: "top" }))).toBe(false);
+  });
+});
+
+describe("filterHref", () => {
+  it("links home filtered to one value, with no seed in the address", () => {
+    expect(filterHref("people", "sam")).toBe("/?person=sam");
+    expect(filterHref("games", "apex-legends")).toBe("/?game=apex-legends");
+    expect(filterHref("tags", "clutch plays")).toBe("/?tag=clutch+plays");
   });
 });

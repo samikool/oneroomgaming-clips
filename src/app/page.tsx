@@ -1,12 +1,12 @@
 import Link from "next/link";
+import { ClipBrowser } from "@/components/browser/clip-browser";
 import { DiskUsage } from "@/components/disk-usage";
-import { FilterChips } from "@/components/filter-chips";
-import { LiveGrid } from "@/components/live-grid";
 import { getDb } from "@/db/client";
-import { listClipsForGrid, totalDiskBytes } from "@/db/clips";
-import { toSummary } from "@/lib/events/clips";
+import { listBrowseOptions } from "@/db/browse-options";
+import { totalDiskBytes } from "@/db/clips";
 import { isAdmin } from "@/lib/auth";
-import { parseFilters } from "@/lib/filters";
+import { parseBrowseQuery, SORTS } from "@/lib/browse/query";
+import { browseTabs } from "@/lib/browse/tabs";
 import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -17,14 +17,14 @@ export default async function Home({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requireUser();
-  const filters = parseFilters(await searchParams);
+  const query = parseBrowseQuery(await searchParams);
   const db = getDb();
-  const clips = listClipsForGrid(db, filters);
-  const filtered = Object.keys(filters).length > 0;
+  // Every tab's first page, so switching tabs never waits on the network.
+  const initialPages = browseTabs(db, query, { tabs: [...SORTS], scope: "home", userId: user.id }).tabs;
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
-      <header className="mb-8 flex items-end justify-between gap-4">
+      <header className="mb-6 flex items-end justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-3xl font-semibold tracking-tight text-ink">Clips</h1>
           <p className="mt-1 text-sm text-ink-muted">
@@ -36,25 +36,15 @@ export default async function Home({
         </Link>
       </header>
 
-      <FilterChips filters={filters} />
-
-      {clips.length === 0 && filtered ? (
-        <p className="text-sm text-ink-muted">
-          Nothing matches those filters.{" "}
-          <Link href="/" className="underline hover:text-ink">
-            Clear them
-          </Link>
-          .
-        </p>
-      ) : (
-        // A filtered grid must not merge live clips that do not match, so the
-        // live merge is only enabled on the unfiltered view.
-        <LiveGrid
-          initial={clips.map(toSummary)}
-          live={!filtered}
-          canSelect={isAdmin(user.authentikUsername)}
-        />
-      )}
+      <ClipBrowser
+        initialQuery={query}
+        initialPages={initialPages}
+        scope="home"
+        density="comfortable"
+        options={listBrowseOptions(db)}
+        // Delete moves to the admin page later; until then it stays here.
+        selection={{ enabled: isAdmin(user.authentikUsername) }}
+      />
     </main>
   );
 }

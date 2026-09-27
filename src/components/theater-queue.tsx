@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ClipSummary, QueueEntry, RoomQueueCommand } from "@/lib/realtime/envelope";
+import type { QueueEntry, RoomQueueCommand } from "@/lib/realtime/envelope";
 import { dropTarget, gapAtPointer } from "@/lib/theater/queue-drag";
 import { UserName } from "./user-name";
 
@@ -14,12 +14,13 @@ type QueueOp = Exclude<RoomQueueCommand, { op: "add" }>;
  */
 export function TheaterQueue({
   queue,
-  clipsById,
+  thumbs,
   iAmHost,
   onQueue,
 }: {
   queue: QueueEntry[];
-  clipsById: Map<string, ClipSummary>;
+  /** id → thumbnail of every ready clip; each browser looks its own up. */
+  thumbs: Record<string, string | null>;
   iAmHost: boolean;
   onQueue(command: QueueOp): void;
 }) {
@@ -90,7 +91,7 @@ export function TheaterQueue({
       ) : (
         <ol ref={listRef} className="flex flex-col gap-2">
           {queue.map((entry, index) => {
-            const thumb = clipsById.get(entry.clipId)?.thumbPath;
+            const thumb = thumbs[entry.clipId];
 
             return (
               <li
