@@ -70,6 +70,20 @@ describe("upsertUser", () => {
 });
 
 describe("upsertUserTracked", () => {
+  it("rolls the visit window after a gap of more than 2 hours", () => {
+    const H = 60 * 60 * 1000;
+    const first = upsertUser(db, { username: "sam", email: null, displayName: null }, new Date(10 * H));
+    expect(first.visitStartedAt?.getTime()).toBe(10 * H);
+    expect(first.previousVisitAt).toBeNull();
+
+    const soon = upsertUser(db, { username: "sam", email: null, displayName: null }, new Date(11 * H));
+    expect(soon.visitStartedAt?.getTime()).toBe(10 * H);
+
+    const later = upsertUser(db, { username: "sam", email: null, displayName: null }, new Date(14 * H));
+    expect(later.visitStartedAt?.getTime()).toBe(14 * H);
+    expect(later.previousVisitAt?.getTime()).toBe(10 * H);
+  });
+
   it("reports creation only on first sight", () => {
     expect(upsertUserTracked(db, { username: "new", email: null, displayName: null }).created).toBe(true);
     expect(upsertUserTracked(db, { username: "new", email: null, displayName: null }).created).toBe(false);

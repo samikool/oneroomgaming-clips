@@ -4,6 +4,7 @@ import { listBrowseOptions } from "@/db/browse-options";
 import { listReadyThumbs } from "@/db/clips";
 import { parseBrowseQuery, SORTS } from "@/lib/browse/query";
 import { browseTabs } from "@/lib/browse/tabs";
+import { activityScores } from "@/db/activity";
 import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,12 @@ export default async function TheaterPage({
   const query = parseBrowseQuery(await searchParams);
   // Only a finished clip can be played in sync: the pipeline has not written a
   // faststart mp4 for anything else, so the theater scope is ready clips only.
-  const initialPages = browseTabs(db, query, { tabs: [...SORTS], scope: "theater", userId: user.id }).tabs;
+  const initialPages = browseTabs(db, query, {
+    tabs: [...SORTS],
+    scope: "theater",
+    userId: user.id,
+    scores: activityScores(db),
+  }).tabs;
 
   return (
     <Theater

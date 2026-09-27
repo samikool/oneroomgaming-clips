@@ -13,9 +13,24 @@ import type { Server as HttpServer } from "node:http";
 let PORT: number;
 let server: HttpServer;
 
+/**
+ * Stands in for web's /api/internal/events: records every report and never
+ * answers, so any test that still passes proves reporting never blocks a socket.
+ */
+const reports: Record<string, unknown>[] = [];
+const hangingWeb = Bun.serve({
+  port: 0,
+  hostname: "127.0.0.1",
+  async fetch(request) {
+    reports.push((await request.json()) as Record<string, unknown>);
+    return new Promise<Response>(() => {});
+  },
+});
+
 beforeAll(async () => {
   process.env.EMIT_SECRET = "test-secret";
   process.env.REALTIME_PORT = "0";
+  process.env.REALTIME_EVENTS_URL = `http://127.0.0.1:${hangingWeb.port}/api/internal/events`;
   server = (await import("./index")).server;
 
   // Wait for the bind rather than sleeping a guessed interval: the address is
@@ -29,6 +44,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  hangingWeb.stop(true);
   await new Promise<void>((resolve) => {
     server.close(() => resolve());
   });
@@ -531,6 +547,111 @@ describe("clip.removed over /emit", () => {
     await Bun.sleep(100);
 
     expect(cleared).toBe(false);
+    ws.close();
+  });
+});
+
+describe("per-user delivery over /emit", () => {
+  it("delivers a targeted emit only to that user", async () => {
+    const kobe = connect("kobe");
+    const pat = connect("pat");
+    await Promise.all([waitFor(kobe, (m) => m.t === "hello"), waitFor(pat, (m) => m.t === "hello")]);
+    kobe.send(JSON.stringify({ t: "sub", topics: ["user"] }));
+    pat.send(JSON.stringify({ t: "sub", topics: ["user"] }));
+    await Promise.all([waitFor(kobe, (m) => m.t === "presence"), waitFor(pat, (m) => m.t === "presence")]);
+
+    // Listeners first, then the emit.
+    const got = waitFor(kobe, (m) => m.t === "notification");
+    let patGot = false;
+    pat.addEventListener("message", (event) => {
+      if ((JSON.parse(String(event.data)) as { t: string }).t === "notification") patGot = true;
+    });
+    await emit({ t: "notification", to: "kobe", notification: { id: "N1" } });
+
+    const message = await got;
+    expect(message).toMatchObject({ t: "notification", notification: { id: "N1" } });
+    expect(message.to).toBeUndefined();
+    await Bun.sleep(50);
+    expect(patGot).toBe(false);
+    kobe.close();
+    pat.close();
+  });
+
+  it("fans clip.likes out to grid subscribers", async () => {
+    const ws = connect("likes-watcher");
+    await waitFor(ws, (m) => m.t === "hello");
+    ws.send(JSON.stringify({ t: "sub", topics: ["grid"] }));
+    await waitFor(ws, (m) => m.t === "presence");
+
+    const seen = waitFor(ws, (m) => m.t === "clip.likes");
+    await emit({ t: "clip.likes", clipId: "01LIKED", count: 3 });
+
+    expect(await seen).toMatchObject({ clipId: "01LIKED", count: 3 });
+    ws.close();
+  });
+});
+
+describe("theater reports to web", () => {
+  function reported(predicate: (r: Record<string, unknown>) => boolean): Promise<Record<string, unknown>> {
+    return new Promise((resolve, reject) => {
+      const started = Date.now();
+      const poll = () => {
+        const found = reports.find(predicate);
+        if (found) return resolve(found);
+        if (Date.now() - started > 2_000) return reject(new Error("no report arrived"));
+        setTimeout(poll, 10);
+      };
+      poll();
+    });
+  }
+
+  it("reports a clip start, and reactions and @chat carry on instantly while web hangs", async () => {
+    const host = await joinRoomTopic("report-host");
+    host.send(JSON.stringify({ t: "room.join" }));
+    await waitFor(host, (m) => m.t === "room" && state(m).hostUserId === "report-host");
+
+    const playing = waitFor(host, (m) => m.t === "room" && state(m).clipId === "01REPORTED");
+    host.send(JSON.stringify({ t: "room.control", action: "setClip", clipId: "01REPORTED", title: "r", durationMs: 1000 }));
+    await playing;
+    expect(await reported((r) => r.kind === "theater.play" && r.clipId === "01REPORTED")).toMatchObject({
+      kind: "theater.play",
+      user: "report-host",
+      clipId: "01REPORTED",
+    });
+
+    // Web is still hanging on the play report. A reaction must not wait for it.
+    const reaction = waitFor(host, (m) => m.t === "reaction");
+    const sent = performance.now();
+    host.send(JSON.stringify({ t: "reaction.send", emoji: "🔥" }));
+    expect(await reaction).toMatchObject({ user: "report-host", emoji: "🔥", clipId: "01REPORTED" });
+    expect(performance.now() - sent).toBeLessThan(500);
+    expect(await reported((r) => r.kind === "theater.reaction" && r.user === "report-host")).toMatchObject({ clipId: "01REPORTED", emoji: "🔥" });
+
+    const chat = waitFor(host, (m) => m.t === "chat");
+    host.send(JSON.stringify({ t: "chat.send", text: "nice @kobe" }));
+    await chat;
+    expect(await reported((r) => r.kind === "theater.chat" && r.user === "report-host")).toMatchObject({
+      user: "report-host",
+      clipId: "01REPORTED",
+      body: "nice @kobe",
+    });
+
+    // Restarting the clip already playing is not a new start.
+    const before = reports.filter((r) => r.kind === "theater.play").length;
+    host.send(JSON.stringify({ t: "room.control", action: "setClip", clipId: "01REPORTED", title: "r", durationMs: 1000 }));
+    await waitFor(host, (m) => m.t === "room");
+    await Bun.sleep(50);
+    expect(reports.filter((r) => r.kind === "theater.play")).toHaveLength(before);
+    host.close();
+  });
+
+  it("does not report chat without an @", async () => {
+    const ws = await joinRoomTopic("quiet-chatter");
+    const chat = waitFor(ws, (m) => m.t === "chat");
+    ws.send(JSON.stringify({ t: "chat.send", text: "no mentions here" }));
+    await chat;
+    await Bun.sleep(50);
+    expect(reports.some((r) => r.body === "no mentions here")).toBe(false);
     ws.close();
   });
 });

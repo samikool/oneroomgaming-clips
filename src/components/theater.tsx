@@ -392,6 +392,7 @@ export function Theater({
           initialPages={initialPages}
           scope="theater"
           density="compact"
+          me={me}
           options={options}
           cardActions={cardActions}
         />

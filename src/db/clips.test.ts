@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createDb, type Db } from "@/db/client";
 import {
-  clipParticipants, clipTags, comments, jobs, mediaFiles, views,
+  activity, clipParticipants, clipTags, comments, jobs, likes, mediaFiles, notifications,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
@@ -226,7 +226,7 @@ describe("deleteClipCascade", () => {
     const user = upsertUser(db, { username: "sam", email: null, displayName: null });
     const clip = seed("01CASCADE", user.id);
 
-    addComment(db, { clipId: clip.id, userId: user.id, body: "hi" });
+    const comment = addComment(db, { clipId: clip.id, userId: user.id, body: "hi" });
     setClipTags(db, clip.id, ["ace"]);
     setClipGame(db, clip.id, "valorant");
     setClipParticipants(db, clip.id, ["sam"]);
@@ -234,8 +234,13 @@ describe("deleteClipCascade", () => {
     recordMediaFile(db, clip.id, {
       kind: "source", path: "clips/01CASCADE.mp4", info, isDefault: true,
     });
-    db.insert(views)
-      .values({ id: "v1", clipId: clip.id, userId: user.id, startedAt: new Date() })
+    const now = new Date();
+    db.insert(likes).values({ userId: user.id, clipId: clip.id, createdAt: now }).run();
+    db.insert(notifications)
+      .values({
+        id: "n1", recipientId: user.id, type: "comment", clipId: clip.id, commentId: comment.id,
+        actors: "[]", createdAt: now, updatedAt: now,
+      })
       .run();
 
     return clip;
@@ -260,9 +265,28 @@ describe("deleteClipCascade", () => {
     expect(remaining(comments, comments.clipId)).toBe(0);
     expect(remaining(clipTags, clipTags.clipId)).toBe(0);
     expect(remaining(clipParticipants, clipParticipants.clipId)).toBe(0);
-    expect(remaining(views, views.clipId)).toBe(0);
+    expect(remaining(activity, activity.clipId)).toBe(0);
+    expect(remaining(likes, likes.clipId)).toBe(0);
+    expect(remaining(notifications, notifications.clipId)).toBe(0);
     expect(remaining(jobs, jobs.clipId)).toBe(0);
     expect(remaining(mediaFiles, mediaFiles.clipId)).toBe(0);
+  });
+
+  it("removes the clip's activity, likes and notifications too", () => {
+    const user = upsertUser(db, { username: "sam", email: null, displayName: null });
+    const clip = createClip(db, { title: "x", originalFilename: "x.mp4", sizeBytes: 1, uploaderId: user.id });
+    const now = new Date();
+    db.insert(activity).values({ id: "A1", type: "view", userId: user.id, clipId: clip.id, at: now }).run();
+    db.insert(likes).values({ userId: user.id, clipId: clip.id, createdAt: now }).run();
+    db.insert(notifications)
+      .values({ id: "N1", recipientId: user.id, type: "like", clipId: clip.id, actors: "[]", createdAt: now, updatedAt: now })
+      .run();
+
+    deleteClipCascade(db, clip.id);
+
+    expect(db.select().from(activity).all()).toHaveLength(0);
+    expect(db.select().from(likes).all()).toHaveLength(0);
+    expect(db.select().from(notifications).all()).toHaveLength(0);
   });
 
   it("leaves other clips and their children untouched", () => {

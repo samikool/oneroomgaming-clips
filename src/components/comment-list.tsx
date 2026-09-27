@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { MentionText } from "./mention-text";
 import { UserName } from "./user-name";
 import { removeComment } from "@/app/clips/[id]/actions";
 import type { CommentRow } from "@/db/comments";
@@ -49,7 +50,7 @@ export function CommentList({
             <UserName username={comment.user} />
           </p>
           <p className={comment.deleted ? "text-sm italic text-ink-muted" : "text-sm text-ink"}>
-            {comment.body}
+            {comment.deleted ? comment.body : <MentionText text={comment.body} />}
           </p>
           {!comment.deleted && comment.user === me && (
             <button

@@ -2,10 +2,13 @@ import { ClipMetadataPanel } from "@/components/clip-metadata";
 import { ClipPlayer } from "@/components/clip-player";
 import { CommentForm } from "@/components/comment-form";
 import { CommentList } from "@/components/comment-list";
+import { LikeButton } from "@/components/like-button";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getDb } from "@/db/client";
 import { getClip } from "@/db/clips";
+import { activityScores } from "@/db/activity";
+import { likeCount } from "@/db/likes";
 import { listComments } from "@/db/comments";
 import { getClipMetadata } from "@/db/metadata";
 import { listUsernames } from "@/db/users";
@@ -38,7 +41,16 @@ export default async function ClipPage({
         {formatDuration(clip.durationMs)}
         {clip.width && clip.height ? ` · ${clip.width}×${clip.height}` : ""}
       </p>
-      <ClipPlayer src={clipPublicPath(clip.id)} />
+      <ClipPlayer src={clipPublicPath(clip.id)} clipId={clip.id} />
+      <div className="mt-3 flex items-center gap-3">
+        <LikeButton
+          clipId={clip.id}
+          me={user.authentikUsername}
+          initialCount={likeCount(getDb(), clip.id)}
+          initialLiked={activityScores(getDb()).likedBy(user.id, [clip.id]).has(clip.id)}
+          isOwn={clip.uploaderId === user.id}
+        />
+      </div>
 
       <div className="mt-4">
         <ClipMetadataPanel

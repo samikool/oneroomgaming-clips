@@ -245,7 +245,7 @@ describe("topicsFor — social messages", () => {
   });
 
   it("routes reactions to the room topic", () => {
-    expect(topicsFor({ t: "reaction", user: "sam", emoji: "🔥", at: 1 })).toEqual(["room"]);
+    expect(topicsFor({ t: "reaction", user: "sam", emoji: "🔥", clipId: null, at: 1 })).toEqual(["room"]);
   });
 
   it("routes a new comment to the grid topic", () => {
@@ -260,7 +260,7 @@ describe("isEphemeral — social messages", () => {
   const chatMessage = { id: "c1", user: "sam", text: "hi", at: 1 };
 
   it("treats reactions as droppable", () => {
-    expect(isEphemeral({ t: "reaction", user: "sam", emoji: "🔥", at: 1 })).toBe(true);
+    expect(isEphemeral({ t: "reaction", user: "sam", emoji: "🔥", clipId: null, at: 1 })).toBe(true);
   });
 
   it("never drops chat", () => {

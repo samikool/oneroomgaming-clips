@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { MentionInput } from "./mention-input";
+import { MentionText } from "./mention-text";
 import { UserName } from "./user-name";
 import { MAX_CHAT_LENGTH } from "@/lib/realtime/chat";
 import type { ChatMessage } from "@/lib/realtime/envelope";
@@ -55,19 +57,21 @@ export function TheaterChat({
             ) : (
               <UserName username={message.user} variant="compact" withAvatar />
             )}{" "}
-            <span className="text-ink">{message.text}</span>
+            <span className="text-ink">
+              <MentionText text={message.text} />
+            </span>
           </li>
         ))}
         <div ref={endRef} />
       </ol>
       <form onSubmit={submit} className="theater-chat-form">
-        <input
+        <MentionInput
           className="title-input"
           value={draft}
           maxLength={MAX_CHAT_LENGTH}
           placeholder="Say something"
           aria-label="Chat message"
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={setDraft}
           // Escape is how the browser leaves fullscreen. Without this the
           // input swallows it and people are stuck with no way out but F11.
           onKeyDown={(event) => {

@@ -1,7 +1,7 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { ulid } from "ulid";
 import type { Db } from "./client";
-import { comments, users } from "./schema";
+import { activity, comments, users } from "./schema";
 import { reindexClip } from "./search";
 
 /**
@@ -60,19 +60,27 @@ export function addComment(
   input: { clipId: string; userId: string; body: string },
 ): CommentRow {
   const id = ulid();
-  db.insert(comments)
-    .values({
-      id,
-      clipId: input.clipId,
-      userId: input.userId,
-      body: input.body,
-      // Nullable and deliberately unused. It exists so playhead-anchored
-      // comments become a UI change with no migration.
-      positionMs: null,
-      createdAt: new Date(),
-      deletedAt: null,
-    })
-    .run();
+  const createdAt = new Date();
+
+  // The comment and its activity row land together or not at all.
+  db.transaction((tx) => {
+    tx.insert(comments)
+      .values({
+        id,
+        clipId: input.clipId,
+        userId: input.userId,
+        body: input.body,
+        // Nullable and deliberately unused. It exists so playhead-anchored
+        // comments become a UI change with no migration.
+        positionMs: null,
+        createdAt,
+        deletedAt: null,
+      })
+      .run();
+    tx.insert(activity)
+      .values({ id: ulid(), type: "comment", userId: input.userId, clipId: input.clipId, at: createdAt })
+      .run();
+  });
   reindexClip(db, input.clipId);
 
   const row = getComment(db, id);

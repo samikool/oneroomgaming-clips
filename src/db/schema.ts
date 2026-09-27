@@ -13,6 +13,9 @@ export const users = sqliteTable("users", {
   pictureVersion: integer("picture_version"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull(),
+  // 0.4.0 "since you were last here": the current visit and the one before it.
+  visitStartedAt: integer("visit_started_at", { mode: "timestamp_ms" }),
+  previousVisitAt: integer("previous_visit_at", { mode: "timestamp_ms" }),
 });
 
 export type User = typeof users.$inferSelect;
@@ -126,12 +129,57 @@ export const comments = sqliteTable(
   (t) => [index("comments_clip_created_idx").on(t.clipId, t.createdAt)],
 );
 
-export const views = sqliteTable("views", {
-  id: text("id").primaryKey(),
-  clipId: text("clip_id").notNull().references(() => clips.id),
-  userId: text("user_id").notNull().references(() => users.id),
-  startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
-});
+export type ActivityType = "view" | "comment" | "reaction" | "theater_play";
+
+/** What people did with a clip. The source of truth for Trending and Top. */
+export const activity = sqliteTable(
+  "activity",
+  {
+    id: text("id").primaryKey(),
+    type: text("type").$type<ActivityType>().notNull(),
+    /** The actor; the host for `theater_play`. */
+    userId: text("user_id").notNull().references(() => users.id),
+    clipId: text("clip_id").notNull().references(() => clips.id),
+    at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    index("activity_clip_at_idx").on(t.clipId, t.at),
+    index("activity_at_idx").on(t.at),
+    index("activity_user_at_idx").on(t.userId, t.at),
+  ],
+);
+
+/** Current state, not history: a like can be undone. */
+export const likes = sqliteTable(
+  "likes",
+  {
+    userId: text("user_id").notNull().references(() => users.id),
+    clipId: text("clip_id").notNull().references(() => clips.id),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.clipId] }), index("likes_clip_idx").on(t.clipId, t.createdAt)],
+);
+
+export type NotificationType = "like" | "comment" | "participant_comment" | "tagged" | "mention";
+
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: text("id").primaryKey(),
+    recipientId: text("recipient_id").notNull().references(() => users.id),
+    type: text("type").$type<NotificationType>().notNull(),
+    clipId: text("clip_id").notNull().references(() => clips.id),
+    commentId: text("comment_id").references(() => comments.id),
+    /** JSON array of usernames, most recent first. */
+    actors: text("actors").notNull(),
+    positionMs: integer("position_ms"),
+    source: text("source").$type<"comment" | "chat">(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    readAt: integer("read_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [index("notifications_recipient_idx").on(t.recipientId, t.readAt, t.updatedAt)],
+);
 
 export const jobs = sqliteTable(
   "jobs",
