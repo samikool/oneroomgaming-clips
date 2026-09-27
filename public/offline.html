@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1c1f26" />
+    <title>Offline · clips</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: flex; align-items: center; justify-content: center; padding: 24px;
+        background: #14161b; color: #eef1f5;
+        font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      main {
+        max-width: 360px; padding: 28px 24px; text-align: center;
+        background: #1c1f26; border: 1px solid #2a2f3a; border-radius: 8px;
+        box-shadow: 4px 4px 0 #0e1014;
+      }
+      .dot { display: inline-block; width: 10px; height: 10px; margin-bottom: 16px; background: #ffc21a; box-shadow: 14px 0 0 #1ec8e8, -14px 0 0 #1ec8e8; }
+      h1 { margin: 0 0 8px; font-size: 22px; letter-spacing: 0.02em; }
+      p { margin: 0 0 20px; color: #9aa4b2; }
+      a {
+        display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 20px;
+        background: #1ec8e8; color: #14161b; font-weight: 600; text-decoration: none; border-radius: 4px;
+        box-shadow: 3px 3px 0 #0e1014;
+      }
+      a:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #0e1014; }
+      a:focus-visible { outline: 2px solid #1ec8e8; outline-offset: 4px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="dot" aria-hidden="true"></span>
+      <h1>You're offline</h1>
+      <p>Clips will be back when your connection is.</p>
+      <a href="/">Retry</a>
+    </main>
+  </body>
+</html>

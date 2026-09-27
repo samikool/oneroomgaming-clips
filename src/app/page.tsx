@@ -7,7 +7,6 @@ import { listBrowseOptions } from "@/db/browse-options";
 import { totalDiskBytes } from "@/db/clips";
 import { sinceLastVisit } from "@/db/since";
 import { SinceLastVisit } from "@/components/since-last-visit";
-import { isAdmin } from "@/lib/auth";
 import { parseBrowseQuery, SORTS } from "@/lib/browse/query";
 import { browseTabs } from "@/lib/browse/tabs";
 import { requireUser } from "@/lib/session";
@@ -54,8 +53,6 @@ export default async function Home({
         density="comfortable"
         me={user.authentikUsername}
         options={listBrowseOptions(db)}
-        // Delete moves to the admin page later; until then it stays here.
-        selection={{ enabled: isAdmin(user.authentikUsername) }}
       />
     </main>
   );

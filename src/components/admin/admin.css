@@ -1,0 +1,74 @@
+/* The admin page. Kept out of globals.css: only /admin loads it. Colours come
+   from the @theme tokens in globals.css. */
+
+/* A sidebar on desktop; a row of tabs that scrolls sideways on a phone. */
+.admin-nav {
+  display: flex; gap: 4px; overflow-x: auto;
+  border-bottom: 1px solid var(--color-line);
+}
+@media (min-width: 768px) {
+  .admin-nav {
+    flex-direction: column; width: 180px; flex-shrink: 0; overflow: visible;
+    border-bottom: 0; border-right: 1px solid var(--color-line); padding-right: 12px;
+    position: sticky; top: 16px;
+  }
+}
+.admin-nav-link {
+  display: flex; align-items: center; min-height: 40px; padding: 6px 12px; white-space: nowrap;
+  font-family: var(--font-display); font-size: 15px; color: var(--color-ink-muted);
+  text-decoration: none; border-radius: 4px;
+}
+.admin-nav-link:hover { color: var(--color-ink); }
+.admin-nav-link-active { color: var(--color-brand); box-shadow: inset 0 -2px 0 var(--color-brand); }
+@media (min-width: 768px) {
+  .admin-nav-link-active { box-shadow: inset 2px 0 0 var(--color-brand); background: var(--color-surface-raised); }
+}
+
+.admin-card {
+  background: var(--color-surface-raised); border: 1px solid var(--color-line); border-radius: 6px;
+}
+.admin-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.admin-input {
+  min-height: 40px; border: 1px solid var(--color-line-strong); border-radius: 4px;
+  padding: 6px 10px; background: var(--color-surface-raised); color: var(--color-ink); font-size: 14px;
+}
+.admin-input:focus-visible { outline-offset: 0; }
+.admin-table-wrap { overflow-x: auto; }
+.admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.admin-table th {
+  text-align: left; font-weight: 500; color: var(--color-ink-muted); font-size: 12px;
+  padding: 8px; border-bottom: 1px solid var(--color-line); white-space: nowrap;
+}
+.admin-table td { padding: 8px; border-bottom: 1px solid var(--color-line); vertical-align: middle; }
+.admin-row-click { cursor: pointer; }
+.admin-row-click:hover td { background: color-mix(in srgb, var(--color-brand) 6%, transparent); }
+.admin-row-open td { background: color-mix(in srgb, var(--color-brand) 8%, transparent); }
+.admin-thumb {
+  display: block; width: 72px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 3px;
+  background: var(--color-surface-sunken); border: 1px solid var(--color-line);
+}
+.admin-status {
+  display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 11px;
+  font-family: var(--font-pixel); border: 1px solid var(--color-line-strong); color: var(--color-ink-muted);
+}
+.admin-status-ready, .admin-status-done { color: var(--color-brand); border-color: color-mix(in srgb, var(--color-brand) 50%, transparent); }
+.admin-status-failed, .admin-status-needs_transcode { color: var(--color-danger); border-color: color-mix(in srgb, var(--color-danger) 60%, transparent); }
+.admin-status-running, .admin-status-processing { color: var(--color-accent); border-color: color-mix(in srgb, var(--color-accent) 50%, transparent); }
+.admin-error { color: color-mix(in srgb, var(--color-danger) 70%, var(--color-ink)); font-size: 12px; overflow-wrap: anywhere; }
+.admin-small-button {
+  display: inline-flex; align-items: center; min-height: 32px; padding: 4px 10px; border-radius: 4px;
+  background: transparent; border: 1px solid var(--color-line-strong); color: var(--color-ink);
+  font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+.admin-small-button:hover:not(:disabled) { border-color: var(--color-brand); color: var(--color-brand); }
+.admin-small-button:disabled { opacity: 0.5; cursor: default; }
+.admin-small-danger:hover:not(:disabled) { border-color: var(--color-danger); color: var(--color-danger); }
+.admin-message { font-size: 13px; color: var(--color-accent); }
+.admin-editor { display: grid; gap: 10px; padding: 12px 4px; }
+@media (min-width: 768px) { .admin-editor { grid-template-columns: 1fr 1fr; } }
+.admin-field { display: flex; flex-direction: column; gap: 4px; }
+.admin-field span { font-size: 12px; color: var(--color-ink-muted); }
+.admin-bar-track { height: 10px; border-radius: 2px; background: var(--color-surface-sunken); overflow: hidden; }
+.admin-bar-fill { height: 100%; background: var(--color-brand); }
+.admin-list { display: flex; flex-direction: column; }
+.admin-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--color-line); }
