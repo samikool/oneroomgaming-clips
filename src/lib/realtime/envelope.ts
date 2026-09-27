@@ -1,5 +1,7 @@
 import { isReaction, normalizeChatText, type ChatMessage } from "./chat";
 import type { Profile } from "@/lib/profiles/types";
+// Type-only, erased at runtime: realtime imports this file and must never load the db.
+import type { NotificationType } from "@/db/schema";
 
 export type { ChatMessage } from "./chat";
 
@@ -76,7 +78,36 @@ export type CommentSummary = {
   deleted: boolean;
 };
 
-export const ROOM_ACTIONS = ["play", "pause", "seek", "setClip"] as const;
+/**
+ * A notification as the tray shows it: the grouped row as it now stands.
+ * The client upserts by id.
+ */
+export type NotificationSummary = {
+  id: string;
+  type: NotificationType;
+  clipId: string;
+  clipTitle: string;
+  /** Usernames, most recent first. */
+  actors: string[];
+  commentId: string | null;
+  /** The first ~80 characters of the comment, when there is one. */
+  excerpt: string | null;
+  positionMs: number | null;
+  source: "comment" | "chat" | null;
+  updatedAt: number;
+  read: boolean;
+};
+
+/**
+ * What realtime reports to web about theater events web can't see. `user` is
+ * the actor — the host who started the clip, for a play.
+ */
+export type ReportedEvent =
+  | { kind: "theater.play"; user: string; clipId: string; at: number }
+  | { kind: "theater.reaction"; user: string; clipId: string | null; emoji: string; at: number }
+  | { kind: "theater.chat"; user: string; clipId: string | null; body: string; at: number };
+
+export const ROOM_ACTIONS =["play", "pause", "seek", "setClip"] as const;
 export type RoomAction = (typeof ROOM_ACTIONS)[number];
 
 export type ServerMessage =
@@ -87,14 +118,17 @@ export type ServerMessage =
   | { t: "room.controlRequested"; user: string }
   | { t: "chat"; message: ChatMessage }
   | { t: "chat.backlog"; messages: ChatMessage[] }
-  | { t: "reaction"; user: string; emoji: string; at: number }
+  | { t: "reaction"; user: string; emoji: string; clipId: string | null; at: number }
   | { t: "comment.added"; comment: CommentSummary }
   | { t: "clip.added"; clip: ClipSummary }
   | { t: "clip.updated"; clip: ClipSummary }
   // Carries only the id: by the time this is published the row is gone, so
   // there is no clip left to summarise.
   | { t: "clip.removed"; clipId: string }
+  // A clip's like count changed. Goes to grid, like every clip event.
   | { t: "clip.likes"; clipId: string; count: number }
+  // Sent to one person (see /emit's `to`), on their user topic.
+  | { t: "notification"; notification: NotificationSummary }
   | { t: "upload.progress"; uploadId: string; pct: number; user: string }
   // Someone's name, colour, bio or picture changed, or someone new arrived.
   | { t: "profile.updated"; profile: Profile };
@@ -143,6 +177,7 @@ export function topicsFor(message: ServerMessage): Topic[] {
   switch (message.t) {
     case "hello":
     case "time.sync":
+    case "notification":
       return ["user"];
     case "presence":
       return ["grid", "room"];

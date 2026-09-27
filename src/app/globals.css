@@ -609,3 +609,66 @@ a.user-name:hover .user-name-text { text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   .browse-stale { transition: none; }
 }
+/* Likes: a heart and a count; the count opens who liked it. */
+.like { position: relative; display: inline-flex; align-items: center; gap: 2px; }
+.like-heart, .like-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 32px; padding: 0 8px; border: 1px solid var(--color-line); border-radius: 4px;
+  background: var(--color-surface); color: var(--color-ink-muted); cursor: pointer;
+  transition: border-color 120ms ease-out, color 120ms ease-out;
+}
+.like-heart { font-size: 18px; line-height: 1; }
+.like-heart:hover:not(:disabled), .like-count:hover { border-color: var(--color-brand); color: var(--color-ink); }
+.like-heart:disabled { cursor: not-allowed; opacity: 0.5; }
+.like-count { min-width: 32px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.like-compact .like-heart, .like-compact .like-count { min-height: 24px; padding: 0 6px; }
+.like-compact .like-heart { font-size: 14px; }
+.like-compact .like-count { min-width: 24px; font-size: 12px; }
+.like-error { position: absolute; left: 0; top: calc(100% + 4px); white-space: nowrap; font-size: 12px; color: var(--color-danger); }
+.likers-popover {
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 30;
+  width: max-content; min-width: 180px; max-width: min(280px, calc(100vw - 32px)); max-height: 260px; overflow-y: auto;
+  padding: 8px 10px; background: var(--color-surface-raised); border: 1px solid var(--color-brand); border-radius: 6px;
+  box-shadow: 4px 4px 0 var(--color-surface-sunken);
+}
+.likers-list { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+
+/* Notifications: a quiet bell until something's unread, then a tray of rows. */
+.pill-quiet { color: var(--color-ink-muted); }
+.notification-list { display: flex; flex-direction: column; }
+.notification {
+  display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px;
+  border-bottom: 1px solid var(--color-line); color: var(--color-ink-muted); text-decoration: none;
+}
+.notification:hover { background: var(--color-surface); color: var(--color-ink); }
+.notification-unread { color: var(--color-ink); box-shadow: inset 3px 0 0 var(--color-brand); }
+.notification-avatars { display: inline-flex; flex-shrink: 0; }
+.notification-avatars > * + * { margin-left: -8px; box-shadow: 0 0 0 2px var(--color-surface-raised); }
+.notification-text { display: block; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+.notification-text em { font-style: italic; color: var(--color-ink); }
+.notification-time { display: block; margin-top: 2px; font-size: 11px; color: var(--color-ink-muted); }
+
+/* @mention picker, under the input it belongs to. */
+.mention-input { position: relative; display: block; flex: 1; min-width: 0; }
+.mention-list {
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 4px); z-index: 30;
+  max-height: 240px; overflow-y: auto; padding: 4px;
+  background: var(--color-surface-raised); border: 1px solid var(--color-brand); border-radius: 6px;
+  box-shadow: 4px 4px 0 var(--color-surface-sunken);
+}
+.mention-option { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+.mention-option-active { background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-brand); }
+
+/* "Since you were last here", above the clip browser. */
+.since-strip {
+  margin-bottom: 24px; padding: 12px 12px 12px 16px;
+  background: var(--color-surface-raised); border: 1px solid var(--color-line); border-left: 3px solid var(--color-accent); border-radius: 6px;
+}
+.since-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.since-thumbs { display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; padding-bottom: 2px; }
+.since-thumb {
+  display: block; width: 96px; aspect-ratio: 16 / 9; flex-shrink: 0; overflow: hidden;
+  border: 1px solid var(--color-line); border-radius: 4px; background: var(--color-surface-sunken);
+}
+.since-thumb:hover { border-color: var(--color-brand); }
+.since-thumb img { width: 100%; height: 100%; object-fit: cover; }

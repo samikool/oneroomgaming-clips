@@ -9,6 +9,7 @@ import type { Page } from "@/lib/browse/tab-state";
 import { useBrowse } from "@/lib/browse/use-browse";
 import { isAllSelected, pruneSelection, selectAll, toggleSelection } from "@/lib/clips/selection";
 import type { ClipSummary } from "@/lib/realtime/envelope";
+import { LikeButton } from "../like-button";
 import { BrowseBar } from "./browse-bar";
 import { BrowseContext } from "./browse-context";
 import { BrowserCard } from "./browser-card";
@@ -29,6 +30,7 @@ export function ClipBrowser({
   options,
   cardActions,
   renderLike,
+  me,
   selection,
 }: {
   initialQuery: BrowseQuery;
@@ -38,6 +40,8 @@ export function ClipBrowser({
   options: BrowseOptions;
   cardActions?: (clip: ClipSummary) => ReactNode;
   renderLike?: (clip: ClipSummary) => ReactNode;
+  /** The viewer. With it, every card gets a live like button; without, a read-only count. */
+  me?: string;
   /** Home admin only: select-and-delete, until the admin page takes it over. */
   selection?: { enabled: boolean };
 }) {
@@ -106,7 +110,19 @@ export function ClipBrowser({
       clip={clip}
       scope={scope}
       actions={cardActions?.(clip)}
-      like={renderLike?.(clip)}
+      like={
+        renderLike?.(clip) ??
+        (me ? (
+          <LikeButton
+            compact
+            clipId={clip.id}
+            me={me}
+            initialCount={clip.likeCount}
+            initialLiked={clip.likedByMe}
+            isOwn={clip.uploader === me}
+          />
+        ) : undefined)
+      }
       selection={
         selecting
           ? {

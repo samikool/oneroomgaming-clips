@@ -2,16 +2,18 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import type { Db } from "./client";
 import {
+  activity,
   clipParticipants,
   clips,
   clipTags,
   comments,
   games,
   jobs,
+  likes,
   mediaFiles,
+  notifications,
   tags,
   users,
-  views,
   type Clip,
   type ClipStatus,
 } from "./schema";
@@ -188,10 +190,13 @@ export function deleteClip(db: Db, id: string): void {
  */
 export function deleteClipCascade(db: Db, id: string): void {
   db.transaction((tx) => {
+    // Notifications first: they reference comments as well as the clip.
+    tx.delete(notifications).where(eq(notifications.clipId, id)).run();
+    tx.delete(activity).where(eq(activity.clipId, id)).run();
+    tx.delete(likes).where(eq(likes.clipId, id)).run();
     tx.delete(comments).where(eq(comments.clipId, id)).run();
     tx.delete(clipTags).where(eq(clipTags.clipId, id)).run();
     tx.delete(clipParticipants).where(eq(clipParticipants.clipId, id)).run();
-    tx.delete(views).where(eq(views.clipId, id)).run();
     tx.delete(jobs).where(eq(jobs.clipId, id)).run();
     tx.delete(mediaFiles).where(eq(mediaFiles.clipId, id)).run();
     tx.run(sql`DELETE FROM clip_search WHERE clip_id = ${id}`);

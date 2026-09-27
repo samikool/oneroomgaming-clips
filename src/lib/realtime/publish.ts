@@ -16,6 +16,7 @@ let warned = false;
 export async function publish(
   message: ServerMessage,
   env: Partial<NodeJS.ProcessEnv> = process.env,
+  { to }: { to?: string } = {},
 ): Promise<boolean> {
   const base = env.REALTIME_URL;
   const secret = env.EMIT_SECRET;
@@ -37,7 +38,8 @@ export async function publish(
     const response = await fetch(`${base}/emit`, {
       method: "POST",
       headers: { "content-type": "application/json", "X-Emit-Secret": secret },
-      body: JSON.stringify(message),
+      // `to` asks realtime to deliver to that one person's sockets only.
+      body: JSON.stringify(to === undefined ? message : { ...message, to }),
       // A hung connection to realtime must not hold a job handler open.
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });

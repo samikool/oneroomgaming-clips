@@ -44,6 +44,18 @@ describe("publish", () => {
     expect(seen?.body).toEqual(message);
   });
 
+  it("adds `to` to the body for a message meant for one person", async () => {
+    let body: unknown;
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      body = JSON.parse(String(init.body));
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+
+    await publish(message, { REALTIME_URL: "http://realtime:3001", EMIT_SECRET: "s3cret" }, { to: "kobe" });
+
+    expect(body).toEqual({ ...message, to: "kobe" });
+  });
+
   it("returns false and does not throw when realtime is unreachable", async () => {
     const warn = spyOn(console, "warn").mockImplementation(() => {});
     globalThis.fetch = (async () => {

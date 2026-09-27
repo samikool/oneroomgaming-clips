@@ -1,4 +1,5 @@
 import { getDb } from "@/db/client";
+import { activityScores } from "@/db/activity";
 import { parseBrowseQuery } from "@/lib/browse/query";
 import { browseTabs, parseScope, parseTabs } from "@/lib/browse/tabs";
 import { requireUser } from "@/lib/session";
@@ -17,6 +18,7 @@ export async function GET(request: Request): Promise<Response> {
       cursor: params.get("cursor"),
       scope: parseScope(params.get("scope")),
       userId: user.id,
+      scores: activityScores(getDb()),
     }),
   );
 }

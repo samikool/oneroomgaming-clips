@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { isAuthorizedEmit } from "@/realtime/emit-auth";
+import { isAuthorizedEmit } from "@/lib/realtime/emit-auth";
 
 describe("isAuthorizedEmit", () => {
   it("accepts a matching secret", () => {

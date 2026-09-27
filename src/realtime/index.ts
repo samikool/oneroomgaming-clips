@@ -6,10 +6,11 @@ import {
   type ClientMessage,
   type ServerMessage,
 } from "@/lib/realtime/envelope";
-import { isAuthorizedEmit } from "./emit-auth";
+import { isAuthorizedEmit } from "@/lib/realtime/emit-auth";
 import { Hub } from "./hub";
 import { CHAT_COOLDOWN_MS, ChatLog, REACTION_COOLDOWN_MS } from "./chat-log";
 import { RateLimiter } from "./rate-limit";
+import { createReporter } from "./report";
 import { Room } from "./room";
 
 const PORT = Number(process.env.REALTIME_PORT ?? 3001);
@@ -21,6 +22,8 @@ const room = new Room();
 const chatLog = new ChatLog();
 const chatLimiter = new RateLimiter(CHAT_COOLDOWN_MS);
 const reactionLimiter = new RateLimiter(REACTION_COOLDOWN_MS);
+// Theater activity for web to record. Never awaited: see report.ts.
+const report = createReporter({ url: process.env.REALTIME_EVENTS_URL, secret: EMIT_SECRET });
 
 class EmitBodyTooLargeError extends Error {
   constructor() {
@@ -82,7 +85,9 @@ async function handleEmit(request: IncomingMessage, response: ServerResponse) {
       return;
     }
 
-    const message = parsed as ServerMessage;
+    // A `to` means one person's sockets rather than a topic fan-out.
+    const { to, ...rest } = parsed as ServerMessage & { to?: unknown };
+    const message = (typeof to === "string" ? rest : parsed) as ServerMessage;
 
     // The one emitted event this process acts on rather than only relaying.
     // A clip deleted while the room is watching it would otherwise leave every
@@ -91,7 +96,7 @@ async function handleEmit(request: IncomingMessage, response: ServerResponse) {
       publishRoom();
     }
 
-    const delivered = hub.publish(message);
+    const delivered = typeof to === "string" ? hub.sendTo(to, message) : hub.publish(message);
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify({ delivered }));
   } catch (error) {
@@ -106,6 +111,15 @@ function publishRoom(): void {
 
 function publishPresence(): void {
   hub.publish({ t: "presence", online: hub.online, inRoom: room.members });
+}
+
+/** A play counts when a clip starts, which means the room's clip changed. */
+function reportIfStarted(host: string, before: string | null): void {
+  const { clipId } = room.state;
+
+  if (clipId !== null && clipId !== before) {
+    report({ kind: "theater.play", user: host, clipId, at: Date.now() });
+  }
 }
 
 function handleRoomMessage(username: string, message: ClientMessage): void {
@@ -144,8 +158,13 @@ function handleRoomMessage(username: string, message: ClientMessage): void {
       // An unauthorized command returns false and is dropped in silence. The
       // sender's client already shows disabled controls; a rejection message
       // would only invite the client to become the enforcement point.
-      if (room.control(username, message)) {
-        publishRoom();
+      {
+        const before = room.state.clipId;
+
+        if (room.control(username, message)) {
+          publishRoom();
+          reportIfStarted(username, before);
+        }
       }
 
       return;
@@ -153,8 +172,13 @@ function handleRoomMessage(username: string, message: ClientMessage): void {
     case "room.queue":
       // Refusals (a follower editing, the cap) are silent for the same reason
       // as room.control.
-      if (room.queue(username, message)) {
-        publishRoom();
+      {
+        const before = room.state.clipId;
+
+        if (room.queue(username, message)) {
+          publishRoom();
+          reportIfStarted(username, before);
+        }
       }
 
       return;
@@ -166,7 +190,15 @@ function handleRoomMessage(username: string, message: ClientMessage): void {
         return;
       }
 
-      hub.publish({ t: "chat", message: chatLog.add(username, message.text) });
+      const line = chatLog.add(username, message.text);
+      hub.publish({ t: "chat", message: line });
+
+      // Web does the real mention parse; realtime only filters out the lines
+      // that can't possibly contain one.
+      if (message.text.includes("@")) {
+        report({ kind: "theater.chat", user: username, clipId: room.state.clipId, body: message.text, at: Date.now() });
+      }
+
       return;
     }
 
@@ -175,7 +207,16 @@ function handleRoomMessage(username: string, message: ClientMessage): void {
         return;
       }
 
-      hub.publish({ t: "reaction", user: username, emoji: message.emoji, at: Date.now() });
+      {
+        const at = Date.now();
+        const { clipId } = room.state;
+        hub.publish({ t: "reaction", user: username, emoji: message.emoji, clipId, at });
+
+        if (clipId !== null) {
+          report({ kind: "theater.reaction", user: username, clipId, emoji: message.emoji, at });
+        }
+      }
+
       return;
 
     default:

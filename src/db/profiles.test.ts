@@ -121,7 +121,7 @@ describe("migration 0004", () => {
     const journalPath = join(dir, "meta", "_journal.json");
     const journal = JSON.parse(readFileSync(journalPath, "utf8")) as { entries: { tag: string }[] };
     const full = structuredClone(journal);
-    journal.entries = journal.entries.filter((entry) => !entry.tag.startsWith("0004"));
+    journal.entries = journal.entries.filter((entry) => entry.tag < "0004");
     writeFileSync(journalPath, JSON.stringify(journal));
 
     const sqlite = new Database(":memory:");

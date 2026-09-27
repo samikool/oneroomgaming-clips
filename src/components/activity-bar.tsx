@@ -7,11 +7,12 @@ import { positionNow } from "@/lib/realtime/room-state";
 import { useRoom } from "@/lib/theater/use-room";
 import { summarize } from "@/lib/uploads/batch";
 import { useUploads } from "@/lib/uploads/provider";
+import { NotificationsPill, NotificationsTray, useNotifications } from "./notifications-pill";
 import { Spinner } from "./spinner";
 import { UserName } from "./user-name";
 import { BatchControls, UploadList } from "./upload-list";
 
-type Tray = "theater" | "uploads" | null;
+type Tray = "theater" | "notifications" | "uploads" | null;
 
 /**
  * Pinned to the bottom of every page: one pill per thing going on — the
@@ -23,6 +24,7 @@ export function ActivityBar({ me }: { me: string }) {
   const { batch, clearFinished } = useUploads();
   const summary = summarize(batch);
   const hasUploads = summary.total > 0;
+  const notifications = useNotifications();
 
   // Escape closes whichever tray is open.
   useEffect(() => {
@@ -56,6 +58,7 @@ export function ActivityBar({ me }: { me: string }) {
   return (
     <>
       {tray === "theater" && <TheaterTray me={me} onClose={closeTray} />}
+      {tray === "notifications" && <NotificationsTray notifications={notifications} onClose={closeTray} />}
       {tray === "uploads" && hasUploads && (
         <div className="tray tray-right" role="dialog" aria-label="Uploads">
           <div className="tray-head">
@@ -75,6 +78,11 @@ export function ActivityBar({ me }: { me: string }) {
 
       <div className="activity-bar">
         <TheaterPill me={me} open={tray === "theater"} onToggle={() => toggle("theater")} />
+        <NotificationsPill
+          unread={notifications.unread}
+          open={tray === "notifications"}
+          onToggle={() => toggle("notifications")}
+        />
         {hasUploads && (
           <button
             type="button"

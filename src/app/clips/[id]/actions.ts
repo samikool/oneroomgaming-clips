@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/db/client";
 import { addComment, softDeleteComment } from "@/db/comments";
-import { setClipGame, setClipParticipants, setClipTags } from "@/db/metadata";
-import { announceComment } from "@/lib/events/social";
+import { getClipMetadata, setClipGame, setClipParticipants, setClipTags } from "@/db/metadata";
+import { onComment, onParticipantsChanged } from "@/lib/social/events";
 import { normalizeChatText } from "@/lib/realtime/chat";
 import { requireUser } from "@/lib/session";
 
@@ -24,9 +24,11 @@ export async function postComment(clipId: string, formData: FormData): Promise<v
     return;
   }
 
-  const comment = addComment(getDb(), { clipId, userId: user.id, body });
+  const db = getDb();
+  const comment = addComment(db, { clipId, userId: user.id, body });
   revalidatePath(`/clips/${clipId}`);
-  await announceComment(comment);
+  // Announces the comment, then notifies the uploader, participants and anyone mentioned.
+  await onComment(db, comment);
 }
 
 export async function removeComment(clipId: string, commentId: string): Promise<void> {
@@ -63,8 +65,11 @@ export async function saveGame(clipId: string, formData: FormData): Promise<void
 }
 
 export async function saveParticipants(clipId: string, formData: FormData): Promise<void> {
-  await requireUser();
-  setClipParticipants(getDb(), clipId, String(formData.get("participants") ?? "").split(","));
+  const user = await requireUser();
+  const db = getDb();
+  const before = getClipMetadata(db, clipId).participants;
+  const after = setClipParticipants(db, clipId, String(formData.get("participants") ?? "").split(","));
   revalidatePath(`/clips/${clipId}`);
   revalidatePath("/");
+  await onParticipantsChanged(db, clipId, user.authentikUsername, before, after);
 }

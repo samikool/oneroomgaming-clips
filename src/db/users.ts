@@ -4,6 +4,7 @@ import type { Db } from "./client";
 import { users, type User } from "./schema";
 import type { AuthenticatedUser } from "@/lib/auth";
 import { reindexUserClips } from "./search";
+import { rollVisit } from "@/lib/social/visits";
 
 /** Upserts the request's identity, saying whether this is the first sight of them. */
 export function upsertUserTracked(
@@ -18,12 +19,21 @@ export function upsertUserTracked(
     .get();
 
   if (existing) {
+    // Before lastSeenAt moves: the gap since it is what starts a new visit.
+    const visit = rollVisit(
+      { lastSeenAt: existing.lastSeenAt.getTime(), visitStartedAt: existing.visitStartedAt?.getTime() ?? null },
+      now.getTime(),
+    );
     const user = db
       .update(users)
       .set({
         email: identity.email ?? existing.email,
         displayName: identity.displayName ?? existing.displayName,
         lastSeenAt: now,
+        ...(visit && {
+          visitStartedAt: new Date(visit.visitStartedAt),
+          previousVisitAt: visit.previousVisitAt === null ? null : new Date(visit.previousVisitAt),
+        }),
       })
       .where(eq(users.id, existing.id))
       .returning()
@@ -47,6 +57,7 @@ export function upsertUserTracked(
       avatarUrl: null,
       createdAt: now,
       lastSeenAt: now,
+      visitStartedAt: now,
     })
     .returning()
     .get();
