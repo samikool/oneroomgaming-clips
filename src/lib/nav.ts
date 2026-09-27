@@ -92,3 +92,11 @@ export function glideFrames(boxes: BarBox[], settle: string) {
     ...(i < stretches && { easing: i === stretches - 1 ? settle : "linear" }),
   }));
 }
+
+/** Where a bar is this instant, part way through a glide or not. DOM only. */
+export function currentBox(el: HTMLElement): BarBox {
+  const style = getComputedStyle(el);
+  const matrix = new DOMMatrixReadOnly(style.transform);
+
+  return { x: matrix.m41, y: matrix.m42, width: parseFloat(style.width) };
+}

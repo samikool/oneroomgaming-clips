@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { BrowseOptions } from "@/db/browse-options";
+import type { BrowseQuery, Sort } from "@/lib/browse/query";
+import type { Page } from "@/lib/browse/tab-state";
 import { clipPublicPath } from "@/lib/media/paths";
 import type { ClipSummary } from "@/lib/realtime/envelope";
-import { mergeClip, type ClipMap } from "@/lib/realtime/merge";
 import { useRealtime } from "@/lib/realtime/use-realtime";
 import { createSyncController, type SyncController } from "@/lib/theater/sync-controller";
 import { useRoom } from "@/lib/theater/use-room";
@@ -14,7 +16,8 @@ import { ReactionBar } from "./reaction-bar";
 import { ReactionStream } from "./reaction-stream";
 import { SidePanel } from "./side-panel";
 import { TheaterChat } from "./theater-chat";
-import { TheaterGrid } from "./theater-grid";
+import { ClipBrowser } from "./browser/clip-browser";
+import { useTheaterCardActions } from "./theater-grid";
 import { TheaterQueue } from "./theater-queue";
 import { UserName } from "./user-name";
 import { WatchingList } from "./watching-list";
@@ -25,14 +28,36 @@ type Tab = "queue" | "chat";
 
 const RESYNC_TOAST_MS = 2_500;
 
-export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
+/** Queue thumbnails follow the library: a clip is in only once it is ready. */
+function applyThumb(thumbs: Record<string, string | null>, clip: ClipSummary): Record<string, string | null> {
+  if (clip.status !== "ready") {
+    if (!(clip.id in thumbs)) return thumbs;
+    const next = { ...thumbs };
+    delete next[clip.id];
+    return next;
+  }
+
+  return thumbs[clip.id] === clip.thumbPath ? thumbs : { ...thumbs, [clip.id]: clip.thumbPath };
+}
+
+export function Theater({
+  me,
+  thumbs: initialThumbs,
+  initialQuery,
+  initialPages,
+  options,
+}: {
+  me: string;
+  thumbs: Record<string, string | null>;
+  initialQuery: BrowseQuery;
+  initialPages: Partial<Record<Sort, Page>>;
+  options: BrowseOptions;
+}) {
   const { view, chat, reactions, clock, send, dismiss } = useRoom();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controllerRef = useRef<SyncController | null>(null);
   const [tab, setTab] = useState<Tab>("queue");
-  const [clipMap, setClipMap] = useState<ClipMap>(() =>
-    Object.fromEntries(clips.map((clip) => [clip.id, clip])),
-  );
+  const [thumbs, setThumbs] = useState(initialThumbs);
   const autoJoined = useRef(false);
   const [needsGesture, setNeedsGesture] = useState(false);
   const [resynced, setResynced] = useState(false);
@@ -58,19 +83,34 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
       }
     }
 
-    setClipMap((current) => mergeClip(current, message));
+    if (message.t === "clip.added" || message.t === "clip.updated") {
+      setThumbs((current) => applyThumb(current, message.clip));
+    } else if (message.t === "clip.removed") {
+      setThumbs((current) => {
+        if (!(message.clipId in current)) return current;
+        const next = { ...current };
+        delete next[message.clipId];
+        return next;
+      });
+    }
   });
 
-  // Only a finished clip can be played in sync, so the grid shows ready clips
-  // only — the same rule the page applies to its first render.
-  const ready = useMemo(
-    () =>
-      Object.values(clipMap)
-        .filter((clip) => clip.status === "ready")
-        .sort((a, b) => b.createdAt - a.createdAt),
-    [clipMap],
-  );
-  const clipsById = useMemo(() => new Map(ready.map((clip) => [clip.id, clip])), [ready]);
+  // Only a finished clip can be played in sync, so the browser here lists
+  // ready clips only (scope "theater").
+  const cardActions = useTheaterCardActions({
+    iAmHost,
+    queueLength: state.queue.length,
+    onQueue: useCallback(
+      (clip: ClipSummary) =>
+        send({ t: "room.queue", op: "add", clipId: clip.id, title: clip.title, durationMs: clip.durationMs }),
+      [send],
+    ),
+    onPlayNow: useCallback(
+      (clip: ClipSummary) =>
+        send({ t: "room.control", action: "setClip", clipId: clip.id, title: clip.title, durationMs: clip.durationMs }),
+      [send],
+    ),
+  });
 
   useEffect(() => {
     const controller = createSyncController({
@@ -227,7 +267,7 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
         <SidePanel id="queue" title="Queue" side="left" hiddenOnMobile={tab !== "queue"}>
           <TheaterQueue
             queue={state.queue}
-            clipsById={clipsById}
+            thumbs={thumbs}
             iAmHost={iAmHost}
             onQueue={send}
           />
@@ -347,28 +387,13 @@ export function Theater({ me, clips }: { me: string; clips: ClipSummary[] }) {
 
       <section className="mt-10">
         <h2 className="mb-4 text-xl text-ink">Clips</h2>
-        <TheaterGrid
-          clips={ready}
-          iAmHost={iAmHost}
-          queueLength={state.queue.length}
-          onQueue={(clip) =>
-            send({
-              t: "room.queue",
-              op: "add",
-              clipId: clip.id,
-              title: clip.title,
-              durationMs: clip.durationMs,
-            })
-          }
-          onPlayNow={(clip) =>
-            send({
-              t: "room.control",
-              action: "setClip",
-              clipId: clip.id,
-              title: clip.title,
-              durationMs: clip.durationMs,
-            })
-          }
+        <ClipBrowser
+          initialQuery={initialQuery}
+          initialPages={initialPages}
+          scope="theater"
+          density="compact"
+          options={options}
+          cardActions={cardActions}
         />
       </section>
 

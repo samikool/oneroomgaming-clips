@@ -3,6 +3,7 @@ import type { Db } from "./client";
 import { users, type User } from "./schema";
 import { defaultAccent, isAccentKey } from "@/lib/profiles/palette";
 import type { Profile } from "@/lib/profiles/types";
+import { reindexUserClips } from "./search";
 
 export type { Profile };
 
@@ -107,7 +108,14 @@ export function updateProfile(
     return toProfile(user);
   }
 
-  return toProfile(db.update(users).set(set).where(eq(users.id, user.id)).returning().get());
+  const updated = db.update(users).set(set).where(eq(users.id, user.id)).returning().get();
+
+  // Search finds people by the name they chose, so a rename has to reach the index.
+  if (set.profileName !== undefined && set.profileName !== user.profileName) {
+    reindexUserClips(db, user.id);
+  }
+
+  return toProfile(updated);
 }
 
 export function setPictureVersion(db: Db, username: string, version: number | null): Profile {

@@ -8,7 +8,7 @@ import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import { clips } from "@/db/schema";
 import {
   applyProbe, createClip, deleteClip, deleteClipCascade, getClip, listAllClips, listClips,
-  listReadyClips, recordMediaFile, setClipStatus, setClipThumb, totalDiskBytes,
+  listReadyClips, listReadyThumbs, recordMediaFile, setClipStatus, setClipThumb, totalDiskBytes,
 } from "@/db/clips";
 import { addComment, listComments } from "@/db/comments";
 import { enqueueStage } from "@/db/jobs";
@@ -310,5 +310,18 @@ describe("deleteClipCascade", () => {
 
     expect(() => deleteClipCascade(db, "nope")).not.toThrow();
     expect(listAllClips(db)).toHaveLength(1);
+  });
+});
+
+describe("listReadyThumbs", () => {
+  it("maps every ready clip, and only ready ones, to its thumbnail", () => {
+    const a = createClip(db, { title: "a", originalFilename: "a.mp4", sizeBytes: 1 });
+    const b = createClip(db, { title: "b", originalFilename: "b.mp4", sizeBytes: 1 });
+    createClip(db, { title: "c", originalFilename: "c.mp4", sizeBytes: 1 });
+    setClipStatus(db, a.id, "ready");
+    setClipThumb(db, a.id, "/media/a.jpg");
+    setClipStatus(db, b.id, "ready");
+
+    expect(listReadyThumbs(db)).toEqual({ [a.id]: "/media/a.jpg", [b.id]: null });
   });
 });

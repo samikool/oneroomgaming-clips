@@ -94,6 +94,7 @@ export type ServerMessage =
   // Carries only the id: by the time this is published the row is gone, so
   // there is no clip left to summarise.
   | { t: "clip.removed"; clipId: string }
+  | { t: "clip.likes"; clipId: string; count: number }
   | { t: "upload.progress"; uploadId: string; pct: number; user: string }
   // Someone's name, colour, bio or picture changed, or someone new arrived.
   | { t: "profile.updated"; profile: Profile };

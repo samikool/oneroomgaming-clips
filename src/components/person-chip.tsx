@@ -11,20 +11,29 @@ import { profileHref } from "@/lib/profiles/href";
 export function PersonChip({
   username,
   filterHref,
+  onFilter,
   className,
 }: {
   username: string;
-  filterHref: string;
   className: string;
-}) {
+} & ({ filterHref: string; onFilter?: never } | { onFilter: () => void; filterHref?: never })) {
+  const name = <UserName username={username} variant="compact" link={false} />;
+
   return (
     <span className="person-chip">
       <Link href={profileHref(username)} className="person-chip-avatar" aria-label={`@${username}'s profile`}>
         <Avatar username={username} size={16} />
       </Link>
-      <Link className={className} href={filterHref}>
-        <UserName username={username} variant="compact" link={false} />
-      </Link>
+      {/* The clip browser filters in place; everywhere else the chip is a link to home, filtered. */}
+      {onFilter ? (
+        <button type="button" className={className} onClick={onFilter}>
+          {name}
+        </button>
+      ) : (
+        <Link className={className} href={filterHref}>
+          {name}
+        </Link>
+      )}
     </span>
   );
 }

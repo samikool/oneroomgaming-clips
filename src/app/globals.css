@@ -520,3 +520,92 @@ a.user-name:hover .user-name-text { text-decoration: underline; }
 .accent-swatch:has(input:focus-visible) { outline: 2px solid var(--color-brand); outline-offset: 2px; }
 .sign-out { display: inline-flex; flex-shrink: 0; padding: 6px; border-radius: 4px; color: var(--color-ink-muted); }
 .sign-out:hover { color: var(--color-ink); background: var(--color-surface-sunken); }
+
+/* Clip browser (0.4.0): one sticky bar, four sliding tabs. */
+.clip-browser { position: relative; }
+.browse-bar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; flex-direction: column; gap: 10px;
+  margin: 0 -20px 16px; padding: 10px 20px 12px;
+  background: var(--color-surface); border-bottom: 1px solid var(--color-line);
+}
+@media (min-width: 640px) { .browse-bar { margin-inline: -32px; padding-inline: 32px; } }
+.browse-tabs { position: relative; display: flex; gap: 20px; }
+.browse-tab { background: transparent; cursor: pointer; gap: 6px; }
+.browse-tab-reshuffle { font-size: 13px; }
+/* Before the bar is measured (first paint), the active tab draws its own underline. */
+.browse-tabs:not([data-underline]) .nav-link-active { box-shadow: inset 0 -2px 0 var(--color-brand); }
+.browse-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.browse-search { position: relative; flex: 1 1 260px; min-width: 0; }
+.browse-search-input {
+  width: 100%; min-height: 36px; padding: 6px 34px 6px 12px; border-radius: 4px;
+  background: var(--color-surface-raised); border: 1px solid var(--color-line-strong); color: var(--color-ink);
+}
+.browse-search-input:focus-visible { outline: none; border-color: var(--color-brand); }
+.browse-search-input::-webkit-search-cancel-button { display: none; }
+.browse-search-clear {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  min-width: 28px; min-height: 28px; border-radius: 4px;
+  background: transparent; color: var(--color-ink-muted); cursor: pointer;
+}
+.browse-search-clear:hover { color: var(--color-ink); background: var(--color-line); }
+/* The row is the popovers' anchor on a phone, so a popover spans the row
+   rather than running off the screen; on wider screens it sits under its button. */
+.browse-filter-row { position: relative; display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; gap: 8px; }
+.filter-popover-anchor { position: static; }
+@media (min-width: 640px) { .filter-popover-anchor { position: relative; } }
+.browse-filter-button {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 4px 12px; border-radius: 4px;
+  background: var(--color-surface-raised); border: 1px solid var(--color-line-strong);
+  color: var(--color-ink); font-size: 13px; cursor: pointer;
+}
+.browse-filter-button:hover, .browse-filter-button[aria-expanded="true"] { border-color: var(--color-brand); }
+.browse-filter-button-on { border-color: color-mix(in srgb, var(--color-brand) 60%, transparent); }
+.browse-filter-count {
+  min-width: 18px; padding: 1px 4px; border-radius: 3px; font-size: 10px; text-align: center;
+  background: var(--color-brand); color: var(--color-surface);
+}
+.browse-filter-caret { font-size: 10px; color: var(--color-ink-muted); }
+.filter-popover {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 25;
+  display: flex; flex-direction: column;
+  max-height: min(60vh, 380px);
+  background: var(--color-surface-raised); border: 1px solid var(--color-brand); border-radius: 6px;
+  box-shadow: 4px 4px 0 var(--color-surface-sunken);
+}
+@media (min-width: 640px) { .filter-popover { right: auto; width: 280px; } }
+.filter-popover-input {
+  margin: 8px; min-height: 32px; padding: 4px 10px; border-radius: 4px;
+  background: var(--color-surface); border: 1px solid var(--color-line-strong); color: var(--color-ink); font-size: 13px;
+}
+.filter-popover-input:focus-visible { outline: none; border-color: var(--color-brand); }
+.filter-popover-list { flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: 0 0 6px; list-style: none; }
+.filter-popover-empty { padding: 8px 12px; font-size: 13px; color: var(--color-ink-muted); }
+.filter-option {
+  display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 4px 12px;
+  font-size: 13px; color: var(--color-ink); cursor: pointer;
+}
+.filter-option:hover { background: var(--color-line); }
+.filter-option input { accent-color: var(--color-brand); width: 16px; height: 16px; flex-shrink: 0; }
+.filter-option-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browse-chips { margin-bottom: 0; align-items: center; }
+.browse-chips .filter-chip { cursor: pointer; }
+/* The strip: panels side by side, the frame clipped to the active one. The
+   frame's bleed gives a hovered card's ring and glow room before the clip. */
+.tab-strip-frame { overflow: clip; margin: -12px; touch-action: pan-y; }
+.tab-strip { display: flex; align-items: flex-start; will-change: transform; }
+.tab-panel { flex: 0 0 100%; min-width: 0; padding: 12px; }
+.browse-stale { opacity: 0.6; transition: opacity 120ms ease-out; }
+.browse-footer, .browse-empty {
+  display: flex; justify-content: center; align-items: center; gap: 8px;
+  padding: 24px 0; font-size: 13px; color: var(--color-ink-muted);
+}
+.browse-empty { justify-content: flex-start; padding: 8px 0; font-size: 14px; }
+.browser-card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; }
+.browser-card-foot button.meta-chip { background: transparent; cursor: pointer; font: inherit; }
+.like-count { display: inline-flex; align-items: center; gap: 4px; padding: 1px 4px; color: var(--color-ink-muted); }
+.like-count-mine { color: var(--color-accent); }
+@media (prefers-reduced-motion: reduce) {
+  .browse-stale { transition: none; }
+}
