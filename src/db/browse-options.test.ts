@@ -17,6 +17,11 @@ const make = (title: string) =>
   createClip(db, { title, originalFilename: `${title}.mp4`, sizeBytes: 1, uploaderId: sam });
 
 describe("listBrowseOptions", () => {
+  it("gives each game its cover path", () => {
+    setClipGame(db, make("a").id, "Apex");
+    expect(listBrowseOptions(db).games).toEqual([{ slug: "apex", name: "Apex", coverPath: null }]);
+  });
+
   it("is empty with no clips", () => {
     expect(listBrowseOptions(db)).toEqual({ games: [], tags: [] });
   });
@@ -31,8 +36,8 @@ describe("listBrowseOptions", () => {
 
     expect(listBrowseOptions(db)).toEqual({
       games: [
-        { slug: "apex-legends", name: "Apex Legends" },
-        { slug: "valorant", name: "Valorant" },
+        { slug: "apex-legends", name: "Apex Legends", coverPath: null },
+        { slug: "valorant", name: "Valorant", coverPath: null },
       ],
       tags: ["ace", "clutch"],
     });
@@ -45,6 +50,6 @@ describe("listBrowseOptions", () => {
     setClipGame(db, a.id, "Valorant");
     setClipTags(db, a.id, ["clutch"]);
 
-    expect(listBrowseOptions(db)).toEqual({ games: [{ slug: "valorant", name: "Valorant" }], tags: ["clutch"] });
+    expect(listBrowseOptions(db)).toEqual({ games: [{ slug: "valorant", name: "Valorant", coverPath: null }], tags: ["clutch"] });
   });
 });

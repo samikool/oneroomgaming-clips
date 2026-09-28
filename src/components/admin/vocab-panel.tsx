@@ -4,13 +4,16 @@ import { useState, useTransition } from "react";
 import {
   deleteGameAction,
   deleteTagAction,
+  linkGameAction,
   mergeGamesAction,
   mergeTagsAction,
   renameGameAction,
   renameTagAction,
 } from "@/app/admin/actions";
+import { coverPublicPath } from "@/lib/media/paths";
+import { GamePicker } from "../game-picker";
 
-type Item = { id: string; name: string; slug?: string; clips: number };
+type Item = { id: string; name: string; slug?: string; clips: number; igdbId?: number | null; coverPath?: string | null };
 type Kind = "game" | "tag";
 
 const ACTIONS = {
@@ -23,27 +26,52 @@ function plural(n: number, word = "clip"): string {
 }
 
 /** Games and tags, side by side on a wide screen: rename, merge into another, delete. */
-export function VocabPanel({ games, tags }: { games: Item[]; tags: Item[] }) {
+export function VocabPanel({ games, tags, igdbEnabled }: { games: Item[]; tags: Item[]; igdbEnabled: boolean }) {
   return (
     <div className="grid gap-8 lg:grid-cols-2">
-      <VocabList kind="game" title="Games" items={games} />
+      <VocabList kind="game" title="Games" items={games} igdbEnabled={igdbEnabled} />
       <VocabList kind="tag" title="Tags" items={tags} />
     </div>
   );
 }
 
-function VocabList({ kind, title, items }: { kind: Kind; title: string; items: Item[] }) {
+function VocabList({
+  kind,
+  title,
+  items,
+  igdbEnabled = false,
+}: {
+  kind: Kind;
+  title: string;
+  items: Item[];
+  igdbEnabled?: boolean;
+}) {
+  const [unlinkedOnly, setUnlinkedOnly] = useState(false);
+  const shown = unlinkedOnly ? items.filter((item) => item.igdbId == null) : items;
+
   return (
     <div>
       <h2 className="mb-2 text-xl text-ink">
         {title} <span className="font-pixel text-xs text-ink-muted">{items.length}</span>
       </h2>
-      {items.length === 0 ? (
+      {igdbEnabled && (
+        <label className="mb-2 flex items-center gap-2 text-sm text-ink-muted">
+          <input type="checkbox" checked={unlinkedOnly} onChange={(event) => setUnlinkedOnly(event.target.checked)} />
+          Not linked to IGDB only
+        </label>
+      )}
+      {shown.length === 0 ? (
         <p className="text-sm text-ink-muted">None yet.</p>
       ) : (
         <ul className="admin-list">
-          {items.map((item) => (
-            <VocabRow key={item.id} kind={kind} item={item} others={items.filter((other) => other.id !== item.id)} />
+          {shown.map((item) => (
+            <VocabRow
+              key={item.id}
+              kind={kind}
+              item={item}
+              others={items.filter((other) => other.id !== item.id)}
+              igdbEnabled={igdbEnabled}
+            />
           ))}
         </ul>
       )}
@@ -51,9 +79,19 @@ function VocabList({ kind, title, items }: { kind: Kind; title: string; items: I
   );
 }
 
-type Mode = { t: "idle" } | { t: "rename" } | { t: "merge"; into: string; confirming: boolean } | { t: "delete" };
+type Mode = { t: "idle" } | { t: "rename" } | { t: "link" } | { t: "merge"; into: string; confirming: boolean } | { t: "delete" };
 
-function VocabRow({ kind, item, others }: { kind: Kind; item: Item; others: Item[] }) {
+function VocabRow({
+  kind,
+  item,
+  others,
+  igdbEnabled,
+}: {
+  kind: Kind;
+  item: Item;
+  others: Item[];
+  igdbEnabled: boolean;
+}) {
   const [mode, setMode] = useState<Mode>({ t: "idle" });
   const [name, setName] = useState(item.name);
   const [message, setMessage] = useState<string | null>(null);
@@ -121,8 +159,12 @@ function VocabRow({ kind, item, others }: { kind: Kind; item: Item; others: Item
           </button>
         </form>
       ) : (
-        <span className="min-w-0 flex-1">
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          {item.coverPath && <img src={coverPublicPath(item.coverPath)} alt="" className="game-cover-sm" />}
           <span className="text-ink">{item.name}</span>
+          {kind === "game" && igdbEnabled && item.igdbId == null && (
+            <span className="font-pixel text-[10px] text-ink-muted">not linked</span>
+          )}
           {item.slug !== undefined && <span className="ml-2 font-pixel text-[10px] text-ink-muted">{item.slug}</span>}
           <span className="ml-2 text-xs text-ink-muted">{plural(item.clips)}</span>
         </span>
@@ -141,6 +183,18 @@ function VocabRow({ kind, item, others }: { kind: Kind; item: Item; others: Item
           >
             Rename
           </button>
+          {kind === "game" && igdbEnabled && (
+            <button
+              type="button"
+              className="admin-small-button"
+              onClick={() => {
+                setMessage(null);
+                setMode({ t: "link" });
+              }}
+            >
+              Link
+            </button>
+          )}
           {others.length > 0 && (
             <button
               type="button"
@@ -168,6 +222,26 @@ function VocabRow({ kind, item, others }: { kind: Kind; item: Item; others: Item
             }}
           >
             Delete
+          </button>
+        </span>
+      )}
+
+      {mode.t === "link" && (
+        <span className="flex w-full min-w-0 items-start gap-2">
+          <GamePicker
+            label={`IGDB game for ${item.name}`}
+            initial={item.name}
+            igdbOnly
+            pending={pending}
+            onPickIgdb={(game) =>
+              startTransition(async () => {
+                const result = await linkGameAction(item.id, game.igdbId);
+                done(result.ok ? undefined : result.error);
+              })
+            }
+          />
+          <button type="button" className="admin-small-button" onClick={() => setMode({ t: "idle" })}>
+            Cancel
           </button>
         </span>
       )}

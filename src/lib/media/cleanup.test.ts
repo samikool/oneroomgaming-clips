@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { removeClipFiles, removeSourceArtifacts } from "@/lib/media/cleanup";
+import { removeClipFiles, removeCoverFile, removeSourceArtifacts } from "@/lib/media/cleanup";
+import { coverFilename, coverPublicPath, coversDir } from "@/lib/media/paths";
 
 let root: string;
 let env: Partial<NodeJS.ProcessEnv>;
@@ -79,5 +80,30 @@ describe("removeClipFiles", () => {
     removeClipFiles(env, "01AAA");
 
     expect(() => removeClipFiles(env, "01AAA")).not.toThrow();
+  });
+});
+
+describe("covers", () => {
+  it("names a cover after the game and the IGDB image", () => {
+    expect(coverFilename("01G", "co1abc")).toBe("01G-co1abc.jpg");
+    expect(coverPublicPath("01G-co1abc.jpg")).toBe("/media/covers/01G-co1abc.jpg");
+  });
+
+  it("removes a cover file, and tolerates null or a file already gone", () => {
+    mkdirSync(coversDir(env), { recursive: true });
+    const file = join(coversDir(env), "01G-co1abc.jpg");
+    writeFileSync(file, "x");
+
+    removeCoverFile(env, "01G-co1abc.jpg");
+    expect(existsSync(file)).toBe(false);
+    removeCoverFile(env, "01G-co1abc.jpg");
+    removeCoverFile(env, null);
+  });
+
+  it("refuses a filename that would escape the covers folder", () => {
+    const outside = join(root, "keep.jpg");
+    writeFileSync(outside, "x");
+    removeCoverFile(env, "../keep.jpg");
+    expect(existsSync(outside)).toBe(true);
   });
 });

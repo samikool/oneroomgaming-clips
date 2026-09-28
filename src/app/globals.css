@@ -178,6 +178,17 @@ h1, h2 { font-family: var(--font-display); }
 .metadata-label { font-size: 12px; color: var(--color-ink-muted); }
 .metadata-row { display: flex; gap: 8px; }
 .metadata-row .title-input { min-width: 0; }
+.game-picker { position: relative; flex: 1; min-width: 0; }
+.game-picker-list {
+  position: absolute; z-index: 20; inset-inline: 0; top: calc(100% + 4px);
+  max-height: 20rem; overflow-y: auto;
+  background: var(--color-surface); border: 1px solid var(--color-line); border-radius: 0.5rem;
+}
+.game-picker-heading { padding: 0.375rem 0.75rem 0.125rem; font-size: 0.7rem; text-transform: uppercase; color: var(--color-ink-muted); }
+.game-picker-option { display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.75rem; cursor: pointer; }
+.game-picker-option[aria-selected="true"], .game-picker-option:hover { background: var(--color-surface-raised); }
+.game-cover-sm { width: 24px; height: 32px; flex: none; object-fit: cover; border-radius: 3px; }
+.game-cover-chip { width: 14px; height: 19px; object-fit: cover; border-radius: 2px; margin-right: 0.35rem; display: inline-block; vertical-align: -4px; }
 .filter-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .filter-chip {
   display: inline-flex; align-items: center; gap: 4px;

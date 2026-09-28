@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { saveGame, saveParticipants, saveTags } from "@/app/clips/[id]/actions";
+import { useState, useTransition } from "react";
+import { pickIgdbGame, saveGame, saveParticipants, saveTags } from "@/app/clips/[id]/actions";
 import type { ClipMetadata } from "@/db/metadata";
 import { filterHref } from "@/lib/browse/query";
+import { coverPublicPath } from "@/lib/media/paths";
+import { GamePicker } from "./game-picker";
 import { PersonChip } from "./person-chip";
 
 /**
@@ -46,23 +48,10 @@ export function ClipMetadataPanel({
           </div>
         </form>
 
-        <form className="metadata-form" action={saveGame.bind(null, clipId)}>
-          <label className="metadata-label" htmlFor="game">
-            Game
-          </label>
-          <div className="metadata-row">
-            <input
-              id="game"
-              name="game"
-              className="title-input"
-              defaultValue={metadata.game?.name ?? ""}
-              placeholder="Valorant"
-            />
-            <button type="submit" className="button-secondary">
-              Save
-            </button>
-          </div>
-        </form>
+        <div className="metadata-form">
+          <span className="metadata-label">Game</span>
+          <GameField clipId={clipId} initial={metadata.game?.name ?? ""} />
+        </div>
 
         <form className="metadata-form" action={saveParticipants.bind(null, clipId)}>
           <label className="metadata-label" htmlFor="participants">
@@ -96,6 +85,9 @@ export function ClipMetadataPanel({
     <div className="metadata-chips">
       {metadata.game && (
         <Link className="chip-button" href={filterHref("games", metadata.game.slug)}>
+          {metadata.game.coverPath && (
+            <img src={coverPublicPath(metadata.game.coverPath)} alt="" className="game-cover-chip" />
+          )}
           {metadata.game.name}
         </Link>
       )}
@@ -116,6 +108,36 @@ export function ClipMetadataPanel({
       <button type="button" className="chip-button" onClick={() => setEditing(true)}>
         Edit
       </button>
+    </div>
+  );
+}
+
+function GameField({ clipId, initial }: { clipId: string; initial: string }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function saveText(name: string) {
+    const form = new FormData();
+    form.set("game", name);
+    startTransition(() => saveGame(clipId, form));
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <GamePicker
+        label="Game"
+        initial={initial}
+        pending={pending}
+        onPickLocal={(game) => saveText(game.name)}
+        onSubmitText={saveText}
+        onPickIgdb={(game) =>
+          startTransition(async () => {
+            const result = await pickIgdbGame(clipId, game.igdbId);
+            setError(result.ok ? null : result.error);
+          })
+        }
+      />
+      {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   );
 }

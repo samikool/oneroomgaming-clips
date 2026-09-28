@@ -1,6 +1,6 @@
 import { rmSync } from "node:fs";
-import { join } from "node:path";
-import { clipFilename, clipsDir, incomingDir, thumbFilename, thumbsDir } from "./paths";
+import { basename, join } from "node:path";
+import { clipFilename, clipsDir, coversDir, incomingDir, thumbFilename, thumbsDir } from "./paths";
 
 /**
  * Removes a clip's pre-publish source artefacts: the working copy at
@@ -37,4 +37,15 @@ export function removeClipFiles(
   rmSync(join(clipsDir(env), clipFilename(clipId)), { force: true });
   rmSync(join(thumbsDir(env), thumbFilename(clipId)), { force: true });
   removeSourceArtifacts(env, clipId);
+}
+
+/**
+ * Removes a game's cover. Called after the row change has committed, so it
+ * never throws. A name with a path in it is ignored rather than resolved.
+ */
+export function removeCoverFile(env: Partial<NodeJS.ProcessEnv>, filename: string | null): void {
+  if (!filename || basename(filename) !== filename) {
+    return;
+  }
+  rmSync(join(coversDir(env), filename), { force: true });
 }

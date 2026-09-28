@@ -2,13 +2,13 @@ import { asc, eq } from "drizzle-orm";
 import type { Db } from "./client";
 import { clips, clipTags, games, tags } from "./schema";
 
-export type BrowseOptions = { games: { slug: string; name: string }[]; tags: string[] };
+export type BrowseOptions = { games: { slug: string; name: string; coverPath: string | null }[]; tags: string[] };
 
 /** What the Game and Tag filters offer: only names some clip actually carries. */
 export function listBrowseOptions(db: Db): BrowseOptions {
   return {
     games: db
-      .selectDistinct({ slug: games.slug, name: games.name })
+      .selectDistinct({ slug: games.slug, name: games.name, coverPath: games.coverPath })
       .from(games)
       .innerJoin(clips, eq(clips.gameId, games.id))
       .orderBy(asc(games.name))

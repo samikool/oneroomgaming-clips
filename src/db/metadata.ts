@@ -6,7 +6,7 @@ import { reindexClip } from "./search";
 
 export type ClipMetadata = {
   tags: string[];
-  game: { id: string; name: string; slug: string } | null;
+  game: { id: string; name: string; slug: string; coverPath: string | null } | null;
   participants: string[];
 };
 
@@ -54,7 +54,7 @@ export function getClipMetadata(db: Db, clipId: string): ClipMetadata {
 
   const game =
     db
-      .select({ id: games.id, name: games.name, slug: games.slug })
+      .select({ id: games.id, name: games.name, slug: games.slug, coverPath: games.coverPath })
       .from(clips)
       .innerJoin(games, eq(clips.gameId, games.id))
       .where(eq(clips.id, clipId))
