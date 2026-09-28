@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "rea
 import type { BrowseOptions } from "@/db/browse-options";
 import { isFiltered, SORTS, type Sort } from "@/lib/browse/query";
 import type { Browse, FilterField } from "@/lib/browse/use-browse";
+import { coverPublicPath } from "@/lib/media/paths";
 import { barStyle, currentBox, glideFrames, glideStops, underlineBox } from "@/lib/nav";
 import { Avatar } from "../avatar";
 import { PANEL_MS, SETTLE } from "../page-slide";
@@ -45,7 +46,16 @@ export function BrowseBar({
   const people = useDirectory();
 
   const gameItems = useMemo(
-    () => withSelected(options.games.map((g) => ({ value: g.slug, text: g.name })), query.games),
+    () => withSelected(options.games.map((g) => ({
+          value: g.slug,
+          text: g.name,
+          display: g.coverPath ? (
+            <span className="inline-flex items-center gap-2">
+              <img src={coverPublicPath(g.coverPath)} alt="" className="game-cover-chip" />
+              {g.name}
+            </span>
+          ) : undefined,
+        })), query.games),
     [options.games, query.games],
   );
   const tagItems = useMemo(

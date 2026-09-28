@@ -15,6 +15,7 @@ import { listGamesWithCounts, listTagsWithCounts } from "@/db/admin/games-tags";
 import { getDb } from "@/db/client";
 import { parseSection, type AdminSection } from "@/lib/admin/sections";
 import { isAdmin } from "@/lib/auth";
+import { getIgdb } from "@/lib/igdb";
 import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +60,7 @@ function Panel({ section, params }: { section: AdminSection; params: Params }) {
       return <UsersPanel users={listAdminUsers(db)} />;
     case "games":
     default:
-      return <VocabPanel games={listGamesWithCounts(db)} tags={listTagsWithCounts(db)} />;
+      return <VocabPanel games={listGamesWithCounts(db)} tags={listTagsWithCounts(db)} igdbEnabled={getIgdb() !== null} />;
   }
 }
 

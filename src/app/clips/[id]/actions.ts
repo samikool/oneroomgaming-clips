@@ -7,6 +7,8 @@ import { getClipMetadata, setClipGame, setClipParticipants, setClipTags } from "
 import { onComment, onParticipantsChanged } from "@/lib/social/events";
 import { normalizeChatText } from "@/lib/realtime/chat";
 import { requireUser } from "@/lib/session";
+import { pickIgdbGameForClip } from "@/lib/games/link";
+import { getIgdb } from "@/lib/igdb";
 import { parsePositionMs } from "@/lib/share/timestamp";
 
 /**
@@ -75,4 +77,20 @@ export async function saveParticipants(clipId: string, formData: FormData): Prom
   revalidatePath(`/clips/${clipId}`);
   revalidatePath("/");
   await onParticipantsChanged(db, clipId, user.authentikUsername, before, after);
+}
+
+/** Picking an IGDB result in the game box. The id is all the browser sends. */
+export async function pickIgdbGame(
+  clipId: string,
+  igdbId: number,
+): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
+  await requireUser();
+  const igdb = getIgdb();
+  if (!igdb || !Number.isInteger(igdbId)) {
+    return { ok: false, error: "IGDB isn't available." };
+  }
+  const result = await pickIgdbGameForClip(getDb(), process.env, igdb, clipId, igdbId);
+  revalidatePath(`/clips/${clipId}`);
+  revalidatePath("/");
+  return result;
 }

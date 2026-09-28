@@ -30,6 +30,11 @@ beforeEach(() => {
 });
 
 describe("games", () => {
+  it("lists IGDB link and cover alongside counts", () => {
+    setClipGame(db, clipId, "Apex");
+    expect(listGamesWithCounts(db)[0]).toMatchObject({ name: "Apex", igdbId: null, coverPath: null, clips: 1 });
+  });
+
   it("renames, regenerating the slug and the search index", () => {
     setClipGame(db, clipId, "Apex");
     expect(renameGame(db, gameId("Apex"), "Apex Legends")).toEqual({ ok: true });

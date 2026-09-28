@@ -34,6 +34,10 @@ export const games = sqliteTable("games", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
+  /** Null for free-text games. One local game per IGDB entry. */
+  igdbId: integer("igdb_id").unique(),
+  /** Filename under MEDIA_ROOT/covers; null until a cover is downloaded. */
+  coverPath: text("cover_path"),
 });
 
 export const clips = sqliteTable(

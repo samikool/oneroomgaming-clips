@@ -3,9 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/db/client";
 import {
-  deleteGame,
   deleteTag,
-  mergeGames,
   mergeTags,
   renameGame,
   renameTag,
@@ -26,6 +24,8 @@ import { announceClipUpdated } from "@/lib/events/clips";
 import { publish } from "@/lib/realtime/publish";
 import { onParticipantsChanged } from "@/lib/social/events";
 import { requireAdmin } from "@/lib/session";
+import { deleteGameWithCover, linkGameToIgdb, mergeGamesWithCovers } from "@/lib/games/link";
+import { getIgdb } from "@/lib/igdb";
 import { eq } from "drizzle-orm";
 
 /**
@@ -64,16 +64,28 @@ export async function renameGameAction(id: unknown, name: unknown): Promise<Rena
 
 export async function mergeGamesAction(fromId: unknown, intoId: unknown): Promise<MergeResult> {
   await requireAdmin();
-  const result = merged(() => mergeGames(getDb(), text(fromId), text(intoId)));
+  const result = merged(() => mergeGamesWithCovers(getDb(), process.env, text(fromId), text(intoId)));
   revalidatePath("/admin");
   return result;
 }
 
 export async function deleteGameAction(id: unknown, force: unknown): Promise<DeleteResult> {
   await requireAdmin();
-  const result = deleteGame(getDb(), text(id), { force: force === true });
+  const result = deleteGameWithCover(getDb(), process.env, text(id), { force: force === true });
   revalidatePath("/admin");
   return result;
+}
+
+export async function linkGameAction(gameId: unknown, igdbId: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireAdmin();
+  const igdb = getIgdb();
+  if (!igdb || typeof igdbId !== "number" || !Number.isInteger(igdbId)) {
+    return { ok: false, error: "IGDB isn't available." };
+  }
+  const result = await linkGameToIgdb(getDb(), process.env, igdb, text(gameId), igdbId);
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return result.ok ? { ok: true } : result;
 }
 
 export async function renameTagAction(id: unknown, name: unknown): Promise<RenameResult> {

@@ -31,3 +31,16 @@ export function clipPublicPath(id: string): string {
 export function thumbPublicPath(id: string): string {
   return `/media/thumbs/${thumbFilename(id)}`;
 }
+
+export function coversDir(env: Partial<NodeJS.ProcessEnv> = process.env): string {
+  return join(mediaRoot(env), "covers");
+}
+
+/** The IGDB image id is in the name, so a relink gets a new URL rather than a cached old cover. */
+export function coverFilename(gameId: string, imageId: string): string {
+  return `${gameId}-${imageId}.jpg`;
+}
+
+export function coverPublicPath(filename: string): string {
+  return `/media/covers/${filename}`;
+}

@@ -24,9 +24,18 @@ export class SelfMergeError extends Error {
   }
 }
 
-export function listGamesWithCounts(db: Db): { id: string; name: string; slug: string; clips: number }[] {
+export function listGamesWithCounts(
+  db: Db,
+): { id: string; name: string; slug: string; igdbId: number | null; coverPath: string | null; clips: number }[] {
   return db
-    .select({ id: games.id, name: games.name, slug: games.slug, clips: count(clips.id) })
+    .select({
+      id: games.id,
+      name: games.name,
+      slug: games.slug,
+      igdbId: games.igdbId,
+      coverPath: games.coverPath,
+      clips: count(clips.id),
+    })
     .from(games)
     .leftJoin(clips, eq(clips.gameId, games.id))
     .groupBy(games.id)
