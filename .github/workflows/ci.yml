@@ -47,8 +47,7 @@ jobs:
       - name: Build image
         run: docker build . -t clips:ci
 
-  # Rolling staging. Every push to dev republishes samikool/clips:dev, which
-  # watchtower picks up within ~60s and deploys to dev.clips.oneroomgaming.com.
+  # Rolling staging. Every push to dev republishes samikool/clips:dev.
   # There is no dev tag: the image tag is fixed and simply overwritten.
   #
   # Gated on test AND build so a red dev branch cannot roll out.
