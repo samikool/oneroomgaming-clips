@@ -8,6 +8,8 @@
  * server to finish preparing the previous one.
  */
 
+import { cleanTitle, dateFromFilename, folderOf, peopleFromPath, type GameChoice } from "./infer";
+
 export type BatchPhase =
   | "staged" // dropped, title still editable, Upload not pressed yet
   | "queued"
@@ -32,13 +34,46 @@ export type BatchItem = {
   sent: number;
   clipId?: string;
   message?: string;
+  /** Relative to what was dropped or chosen; the folder groups it. */
+  path: string;
+  folder: string;
+  recordedAt: number | null;
+  /** People besides the group's; a best guess until someone edits it. */
+  people: string[];
+  peopleGuess: boolean;
+  /** undefined inherits the group's game; null means none for this clip. */
+  game?: GameChoice | null;
 };
 
-export type Batch = { items: BatchItem[]; paused: boolean };
+/** One folder of the review list. Its fields apply to every clip in it. */
+export type Group = {
+  folder: string;
+  game: GameChoice | null;
+  gameGuess: boolean;
+  /** Someone chose the game, so a late guess must not replace it. */
+  gameTouched: boolean;
+  /** A guess is on its way; this folder's clips wait for it before sending. */
+  guessing: boolean;
+  tags: string[];
+  people: string[];
+};
 
-export const EMPTY_BATCH: Batch = { items: [], paused: false };
+export type Batch = { items: BatchItem[]; paused: boolean; groups: Group[] };
 
-export type BatchFile = { key: string; name: string; size: number };
+export const EMPTY_BATCH: Batch = { items: [], paused: false, groups: [] };
+
+export type BatchFile = {
+  key: string;
+  name: string;
+  size: number;
+  path?: string;
+  recordedAt?: number | null;
+  people?: string[];
+  title?: string;
+};
+
+export const VIDEO_NAME = /\.(mp4|mov|mkv|webm|avi)$/i;
+const CAP = 20;
 
 const SENDING: readonly BatchPhase[] = ["starting", "uploading", "pausing"];
 const UPLOADED: readonly BatchPhase[] = ["processing", "ready", "failed", "needs_transcode", "duplicate"];
@@ -63,18 +98,32 @@ export function updateItem(batch: Batch, key: string, patch: Partial<BatchItem>)
 export function addFiles(batch: Batch, files: BatchFile[]): Batch {
   const running = batch.items.some((i) => UNSENT.includes(i.phase) || i.phase === "processing");
   const known = new Set(batch.items.map((i) => i.key));
+  // The same file copied into two folders shares a key: the first one stays.
   const fresh = files
-    .filter((f) => !known.has(f.key))
+    .filter((f) => !known.has(f.key) && (known.add(f.key), true))
     .map<BatchItem>((f) => ({
       key: f.key,
       name: f.name,
       size: f.size,
-      title: titleFrom(f.name),
+      title: f.title ?? titleFrom(f.name),
       phase: running ? "queued" : "staged",
       sent: 0,
+      path: f.path ?? f.name,
+      folder: folderOf(f.path ?? f.name),
+      recordedAt: f.recordedAt ?? null,
+      people: f.people ?? [],
+      peopleGuess: (f.people ?? []).length > 0,
     }));
+  const folders = new Set(batch.groups.map((g) => g.folder));
+  const groups = [...batch.groups];
+  for (const { folder } of fresh) {
+    if (!folders.has(folder)) {
+      folders.add(folder);
+      groups.push({ folder, game: null, gameGuess: false, gameTouched: false, guessing: folder !== "", tags: [], people: [] });
+    }
+  }
 
-  return { ...batch, items: [...batch.items, ...fresh] };
+  return { ...batch, items: [...batch.items, ...fresh], groups };
 }
 
 export function removeStaged(batch: Batch, key: string): Batch {
@@ -83,6 +132,7 @@ export function removeStaged(batch: Batch, key: string): Batch {
 
 export function startBatch(batch: Batch): Batch {
   return {
+    ...batch,
     paused: false,
     items: batch.items.map((i) => (i.phase === "staged" ? { ...i, phase: "queued" } : i)),
   };
@@ -94,7 +144,8 @@ export function nextToSend(batch: Batch): string | null {
     return null;
   }
 
-  return batch.items.find((i) => i.phase === "queued")?.key ?? null;
+  const waiting = new Set(batch.groups.filter((g) => g.guessing).map((g) => g.folder));
+  return batch.items.find((i) => i.phase === "queued" && !waiting.has(i.folder))?.key ?? null;
 }
 
 /** Stops the run. The provider aborts whichever file is mid-send. */
@@ -104,6 +155,7 @@ export function pauseAll(batch: Batch): Batch {
 
 export function resumeAll(batch: Batch): Batch {
   return {
+    ...batch,
     paused: false,
     items: batch.items.map((i) => (i.phase === "paused" ? { ...i, phase: "queued" } : i)),
   };
@@ -116,6 +168,7 @@ export function retry(batch: Batch, key: string): Batch {
 /** What already reached the server stays; everything else stops. */
 export function cancelAll(batch: Batch): Batch {
   return {
+    ...batch,
     paused: false,
     items: batch.items.map((i) =>
       i.phase === "staged" || UNSENT.includes(i.phase) ? { ...i, phase: "cancelled" } : i,
@@ -178,4 +231,77 @@ export function settleProcessing(batch: Batch, statuses: Record<string, string>)
         : i;
     }),
   };
+}
+
+export function addPicked(
+  batch: Batch,
+  files: { key: string; name: string; size: number; path: string }[],
+  people: { username: string; name: string }[],
+): { batch: Batch; skipped: number; copies: number } {
+  const videos = files.filter((f) => VIDEO_NAME.test(f.name) && f.size > 0);
+  const inferred = videos.map((f) => {
+    const recordedAt = dateFromFilename(f.name);
+    return { ...f, recordedAt, title: cleanTitle(f.name, recordedAt), people: peopleFromPath(f.path, people) };
+  });
+  const next = addFiles(batch, inferred);
+  const added = next.items.length - batch.items.length;
+  return { batch: next, skipped: files.length - videos.length, copies: videos.length - added };
+}
+
+function patchGroup(batch: Batch, folder: string, change: Partial<Group>): Batch {
+  return { ...batch, groups: batch.groups.map((g) => (g.folder === folder ? { ...g, ...change } : g)) };
+}
+
+export function setGroup(batch: Batch, folder: string, patch: Partial<Pick<Group, "game" | "tags" | "people">>): Batch {
+  const change: Partial<Group> = { ...patch };
+  if ("game" in patch) {
+    change.gameGuess = false;
+    change.gameTouched = true;
+    change.guessing = false;
+  }
+  return patchGroup(batch, folder, change);
+}
+
+/** A guess lands only while nobody has chosen this group's game. Either way the wait is over. */
+export function guessGroupGame(batch: Batch, folder: string, game: GameChoice | null): Batch {
+  const group = batch.groups.find((g) => g.folder === folder);
+  if (!group) return batch;
+  if (group.gameTouched || !game) return patchGroup(batch, folder, { guessing: false });
+  return patchGroup(batch, folder, { game, gameGuess: true, guessing: false });
+}
+
+/** The guess failed or timed out: send without it. */
+export function endGuess(batch: Batch, folder: string): Batch {
+  return patchGroup(batch, folder, { guessing: false });
+}
+
+/** Someone is typing a game for this group: no guess may replace it. */
+export function touchGroup(batch: Batch, folder: string): Batch {
+  return patchGroup(batch, folder, { gameTouched: true, gameGuess: false, guessing: false });
+}
+
+export function effectivePeople(batch: Batch, item: BatchItem): string[] {
+  const group = batch.groups.find((g) => g.folder === item.folder);
+  return [...new Set([...item.people, ...(group?.people ?? [])])].sort().slice(0, CAP);
+}
+
+function gameValue(game: GameChoice): string {
+  if (game.kind === "local") return `local:${game.id}`;
+  if (game.kind === "igdb") return `igdb:${game.igdbId}`;
+  return `text:${game.name}`;
+}
+
+export function metadataFor(batch: Batch, key: string): Record<string, string> {
+  const item = batch.items.find((i) => i.key === key);
+  if (!item) return {};
+  const group = batch.groups.find((g) => g.folder === item.folder);
+  const game = item.game !== undefined ? item.game : group?.game ?? null;
+  const tags = (group?.tags ?? []).slice(0, CAP);
+  const people = effectivePeople(batch, item);
+  const out: Record<string, string> = {};
+  if (game) out.game = gameValue(game);
+  if (tags.length) out.tags = tags.join(",");
+  if (people.length) out.people = people.join(",");
+  if (item.recordedAt !== null) out.recordedAt = String(item.recordedAt);
+  return out;
 }

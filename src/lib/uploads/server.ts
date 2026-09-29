@@ -5,7 +5,12 @@ import { basename, extname, join } from "node:path";
 import { ulid } from "ulid";
 import { getDb, type Db } from "@/db/client";
 import { createClip, findClipByFingerprint, getClip } from "@/db/clips";
+import { games } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { enqueueStage } from "@/db/jobs";
+import { setClipGame, setClipGameId, setClipParticipants, setClipTags } from "@/db/metadata";
+import { getIgdb, type Igdb } from "@/lib/igdb";
+import { resolveUploadMeta } from "./meta";
 import { upsertUser } from "@/db/users";
 import { MissingAuthHeadersError } from "@/lib/auth";
 import { resolveIdentity } from "@/lib/session";
@@ -33,7 +38,7 @@ export function progressPercent(offset: number, size: number | undefined): numbe
   return Math.min(100, Math.round((offset / size) * 100));
 }
 
-export function createUploadService(db: Db, env: NodeJS.ProcessEnv = process.env) {
+export function createUploadService(db: Db, env: NodeJS.ProcessEnv = process.env, igdb: Igdb | null = getIgdb()) {
   const incoming = incomingDir(env);
   const directory = join(incoming, ".uploads");
   mkdirSync(directory, { recursive: true });
@@ -61,7 +66,16 @@ export function createUploadService(db: Db, env: NodeJS.ProcessEnv = process.env
         uploaderId: metadata.uploaderId!,
         sizeBytes: upload.size!,
         fingerprint: metadata.fingerprint ?? null,
+        recordedAt: metadata.recordedAt ? new Date(Number(metadata.recordedAt)) : null,
       });
+      // Resolved when the upload started; it may have been merged or deleted
+      // since. A missing game must not stop the clip being created.
+      const gameStillThere =
+        metadata.gameId && db.select({ id: games.id }).from(games).where(eq(games.id, metadata.gameId)).get();
+      if (gameStillThere) setClipGameId(db, upload.id, metadata.gameId!);
+      else if (metadata.gameName) setClipGame(db, upload.id, metadata.gameName);
+      if (metadata.tags) setClipTags(db, upload.id, metadata.tags.split(","));
+      if (metadata.people) setClipParticipants(db, upload.id, metadata.people.split(","));
       enqueueStage(db, upload.id, "probe");
     });
 
@@ -107,11 +121,13 @@ export function createUploadService(db: Db, env: NodeJS.ProcessEnv = process.env
         if (existing) throw duplicateOf(existing);
       }
       const user = upsertUser(db, resolveIdentity(req.headers, env));
+      const extra = await resolveUploadMeta(db, env, igdb, upload.metadata ?? {});
       // Replace, rather than merge, untrusted metadata.
       return {
         metadata: {
           filename, title, owner: user.authentikUsername, uploaderId: user.id,
           ...(fingerprint ? { fingerprint } : {}),
+          ...extra,
         },
       };
     },

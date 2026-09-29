@@ -11,7 +11,7 @@ const IGDB_THUMB = (id: string) => `https://images.igdb.com/igdb/image/upload/t_
 
 /** A game search box: your games first, then IGDB's. Arrow keys, Enter, Escape. */
 export function GamePicker({
-  initial, igdbOnly = false, onPickLocal, onPickIgdb, onSubmitText, pending = false, label,
+  initial, igdbOnly = false, onPickLocal, onPickIgdb, onSubmitText, onTextChange, onBlurText, pending = false, label,
 }: {
   initial: string;
   igdbOnly?: boolean;
@@ -20,6 +20,10 @@ export function GamePicker({
   onSubmitText?: (text: string) => void;
   pending?: boolean;
   label: string;
+  /** Every keystroke, for a caller that must know someone is typing. */
+  onTextChange?: (text: string) => void;
+  /** Leaving the box, with whatever it holds. */
+  onBlurText?: (text: string) => void;
 }) {
   const [text, setText] = useState(initial);
   const [results, setResults] = useState<PickerResults>({ local: [], igdb: [] });
@@ -103,9 +107,13 @@ export function GamePicker({
           onChange={(event) => {
             typed.current = true;
             setText(event.target.value);
+            onTextChange?.(event.target.value);
           }}
           onKeyDown={onKeyDown}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onBlur={() => {
+            setTimeout(() => setOpen(false), 150);
+            onBlurText?.(text);
+          }}
           onFocus={() => options.length > 0 && setOpen(true)}
         />
         {onSubmitText && (

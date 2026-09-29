@@ -4,15 +4,23 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Upload } from "tus-js-client";
 import { clipStatuses } from "@/app/actions";
 import { useRealtime } from "@/lib/realtime/use-realtime";
+import { useDirectory } from "@/components/profiles-provider";
+import type { PickerResults } from "@/lib/games/search";
 import * as rules from "./batch";
 import { fingerprint } from "./fingerprint";
-import type { Batch, BatchItem } from "./batch";
+import { pickGame, type GameChoice } from "./infer";
+import type { Picked } from "./intake";
+import type { Batch, BatchItem, Group } from "./batch";
 
 type Uploads = {
   batch: Batch;
-  /** Returns an error message when some files were refused. */
-  add(files: File[]): string;
+  /** Returns a message when some files were skipped, else "". */
+  add(picked: Picked[]): string;
   setTitle(key: string, title: string): void;
+  setGroup(folder: string, patch: Partial<Pick<Group, "game" | "tags" | "people">>): void;
+  /** Someone is typing this group's game: no guess may land. */
+  touchGroup(folder: string): void;
+  setItem(key: string, patch: { recordedAt?: number | null; people?: string[]; game?: GameChoice | null | undefined }): void;
   start(): void;
   pauseAll(): void;
   resumeAll(): void;
@@ -25,7 +33,6 @@ type Uploads = {
 
 const UploadsContext = createContext<Uploads | null>(null);
 
-const ACCEPTED = /\.(mp4|mov|mkv|webm|avi)$/i;
 const keyOf = (file: File) => `${file.name}-${file.size}-${file.lastModified}`;
 
 type TusError = Error & { originalResponse?: { getStatus(): number; getBody(): string } | null };
@@ -56,6 +63,7 @@ export function UploadsProvider({ me, children }: { me: string; children: React.
   const batchRef = useRef<Batch>(rules.EMPTY_BATCH);
   const files = useRef(new Map<string, File>());
   const uploads = useRef(new Map<string, Upload>());
+  const directory = useDirectory();
 
   const commit = useCallback((next: Batch) => {
     batchRef.current = next;
@@ -91,6 +99,9 @@ export function UploadsProvider({ me, children }: { me: string; children: React.
           retryDelays: [0, 1000, 3000, 5000, 10000],
           removeFingerprintOnSuccess: true,
           metadata: {
+            // Game, tags, people and date from the review list; the server
+            // checks each and applies them as the clip is created.
+            ...rules.metadataFor(batchRef.current, key),
             filename: file.name,
             title: item.title.trim() || file.name.replace(/\.[^.]+$/, ""),
             fingerprint: print,
@@ -241,23 +252,55 @@ export function UploadsProvider({ me, children }: { me: string; children: React.
 
     return {
       batch,
-      add(selected) {
-        const valid = selected.filter((f) => ACCEPTED.test(f.name) && f.size > 0);
+      add(picked) {
+        const before = new Set(batchRef.current.groups.map((g) => g.folder));
 
-        for (const f of valid) {
-          if (!files.current.has(keyOf(f))) {
-            files.current.set(keyOf(f), f);
+        for (const { file } of picked) {
+          if (rules.VIDEO_NAME.test(file.name) && file.size > 0 && !files.current.has(keyOf(file))) {
+            files.current.set(keyOf(file), file);
           }
         }
 
-        commit(
-          rules.addFiles(
-            batchRef.current,
-            valid.map((f) => ({ key: keyOf(f), name: f.name, size: f.size })),
-          ),
+        const { batch: next, skipped, copies } = rules.addPicked(
+          batchRef.current,
+          picked.map(({ file, path }) => ({ key: keyOf(file), name: file.name, size: file.size, path })),
+          directory.map((p) => ({ username: p.username, name: p.name })),
         );
+        commit(next);
 
-        return valid.length < selected.length ? "Choose non-empty MP4, MOV, MKV, WebM, or AVI videos." : "";
+        // A best guess per new folder, in the background. guessGroupGame
+        // ignores it if someone chose the game meanwhile.
+        for (const { folder } of next.groups) {
+          if (!folder || before.has(folder)) continue;
+          // The folder's clips wait for this, so it gives up after 5 s.
+          void fetch(`/api/games/search?q=${encodeURIComponent(folder)}`, { signal: AbortSignal.timeout(5000) })
+            .then((r) => (r.ok ? (r.json() as Promise<PickerResults>) : null))
+            .then((results) =>
+              commit(
+                results
+                  ? rules.guessGroupGame(batchRef.current, folder, pickGame(folder, results))
+                  : rules.endGuess(batchRef.current, folder),
+              ),
+            )
+            .catch(() => commit(rules.endGuess(batchRef.current, folder)));
+        }
+
+        const notes = [
+          skipped ? `Skipped ${skipped} file${skipped === 1 ? " that isn't a video" : "s that aren't videos"}.` : "",
+          copies ? `Skipped ${copies} cop${copies === 1 ? "y" : "ies"} of a file already in the list.` : "",
+        ];
+        return notes.filter(Boolean).join(" ");
+      },
+      setGroup(folder, change) {
+        commit(rules.setGroup(batchRef.current, folder, change));
+      },
+      touchGroup(folder) {
+        if (!batchRef.current.groups.find((g) => g.folder === folder)?.gameTouched) {
+          commit(rules.touchGroup(batchRef.current, folder));
+        }
+      },
+      setItem(key, change) {
+        patch(key, { ...change, ...(change.people ? { peopleGuess: false } : {}) });
       },
       setTitle(key, title) {
         patch(key, { title: title.slice(0, 200) });
@@ -307,7 +350,7 @@ export function UploadsProvider({ me, children }: { me: string; children: React.
       },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [batch, commit, patch]);
+  }, [batch, commit, patch, directory]);
 
   return <UploadsContext.Provider value={value}>{children}</UploadsContext.Provider>;
 }

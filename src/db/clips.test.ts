@@ -349,3 +349,21 @@ describe("listReadyThumbs", () => {
     expect(listReadyThumbs(db)).toEqual({ [a.id]: "/media/a.jpg", [b.id]: null });
   });
 });
+
+describe("applyProbe recorded time", () => {
+  it("fills an empty recorded time from the video", () => {
+    const id = createClip(db, { title: "a", originalFilename: "a.mp4", sizeBytes: 1 }).id;
+    applyProbe(db, id, { ...info, createdAt: Date.UTC(2022, 1, 18) });
+    expect(getClip(db, id)?.recordedAt?.getTime()).toBe(Date.UTC(2022, 1, 18));
+  });
+  it("never overwrites a recorded time already set", () => {
+    const id = createClip(db, { title: "a", originalFilename: "a.mp4", sizeBytes: 1, recordedAt: new Date(Date.UTC(2021, 0, 1)) }).id;
+    applyProbe(db, id, { ...info, createdAt: Date.UTC(2022, 1, 18) });
+    expect(getClip(db, id)?.recordedAt?.getTime()).toBe(Date.UTC(2021, 0, 1));
+  });
+  it("ignores an implausible stamp", () => {
+    const id = createClip(db, { title: "a", originalFilename: "a.mp4", sizeBytes: 1 }).id;
+    applyProbe(db, id, { ...info, createdAt: 0 });
+    expect(getClip(db, id)?.recordedAt).toBeNull();
+  });
+});

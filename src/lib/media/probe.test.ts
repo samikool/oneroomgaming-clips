@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ProbeError, probeFile } from "@/lib/media/probe";
+import { parseCreationTime, ProbeError, probeFile } from "@/lib/media/probe";
 
 let dir: string;
 let sample: string;
@@ -57,5 +57,16 @@ describe("probeFile", () => {
     await proc.exited;
 
     expect(probeFile(audioOnly)).rejects.toThrow(ProbeError);
+  });
+});
+
+describe("parseCreationTime", () => {
+  it("reads ffprobe's creation_time", () => {
+    expect(parseCreationTime({ creation_time: "2022-02-18T05:14:02.000000Z" })).toBe(Date.UTC(2022, 1, 18, 5, 14, 2));
+  });
+  it("gives nothing when absent or unparseable", () => {
+    expect(parseCreationTime(undefined)).toBeNull();
+    expect(parseCreationTime({})).toBeNull();
+    expect(parseCreationTime({ creation_time: "garbage" })).toBeNull();
   });
 });

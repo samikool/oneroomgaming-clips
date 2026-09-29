@@ -143,3 +143,8 @@ export function setClipParticipants(db: Db, clipId: string, usernames: string[])
 
   return known.map((user) => user.name).sort();
 }
+
+export function setClipGameId(db: Db, clipId: string, gameId: string | null): void {
+  db.update(clips).set({ gameId }).where(eq(clips.id, clipId)).run();
+  reindexClip(db, clipId);
+}
