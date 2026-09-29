@@ -1,3 +1,4 @@
+import { gameCover } from "@/lib/games/picker";
 import type { PickerResults } from "@/lib/games/search";
 
 /**
@@ -6,9 +7,10 @@ import type { PickerResults } from "@/lib/games/search";
  * runtime's timezone — in the browser, the uploader's.
  */
 
+/** `cover` is display-only art for the picker; the server never sees it. */
 export type GameChoice =
-  | { kind: "local"; id: string; name: string }
-  | { kind: "igdb"; igdbId: number; name: string }
+  | { kind: "local"; id: string; name: string; cover?: string | null }
+  | { kind: "igdb"; igdbId: number; name: string; cover?: string | null }
   | { kind: "text"; name: string };
 
 export function folderOf(path: string): string {
@@ -84,13 +86,13 @@ export function pickGame(folder: string, results: PickerResults): GameChoice | n
   const want = norm(folder);
   if (!want) return null;
   const exact = results.local.find((g) => norm(g.name) === want);
-  if (exact) return { kind: "local", id: exact.id, name: exact.name };
+  if (exact) return { kind: "local", id: exact.id, name: exact.name, cover: gameCover(exact) };
   const contained = results.local
     .filter((g) => norm(g.name).length > 0 && want.includes(norm(g.name)))
     .sort((a, b) => norm(b.name).length - norm(a.name).length)[0];
-  if (contained) return { kind: "local", id: contained.id, name: contained.name };
+  if (contained) return { kind: "local", id: contained.id, name: contained.name, cover: gameCover(contained) };
   const top = results.igdb[0];
-  return top ? { kind: "igdb", igdbId: top.igdbId, name: top.name } : null;
+  return top ? { kind: "igdb", igdbId: top.igdbId, name: top.name, cover: gameCover(top) } : null;
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");

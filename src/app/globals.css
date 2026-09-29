@@ -188,6 +188,11 @@ h1, h2 { font-family: var(--font-display); }
 .game-picker-option { display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.75rem; cursor: pointer; }
 .game-picker-option[aria-selected="true"], .game-picker-option:hover { background: var(--color-surface-raised); }
 .game-cover-sm { width: 24px; height: 32px; flex: none; object-fit: cover; border-radius: 3px; }
+.game-picker-box { position: relative; flex: 1; min-width: 0; }
+.game-picker-cover { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 20px; height: 27px; object-fit: cover; border-radius: 2px; pointer-events: none; }
+.game-picker-box .title-input.has-cover { padding-left: 36px; }
+.game-picker-notice { padding: 0.5rem 0.75rem; font-size: 0.85rem; color: var(--color-ink-muted); }
+.game-picker-hint { margin-top: 0.25rem; font-size: 0.75rem; color: var(--color-ink-muted); }
 .game-cover-chip { width: 14px; height: 19px; object-fit: cover; border-radius: 2px; margin-right: 0.35rem; display: inline-block; vertical-align: -4px; }
 .filter-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .filter-chip {

@@ -74,20 +74,26 @@ describe("peopleFromPath", () => {
 
 describe("pickGame", () => {
   const empty: PickerResults = { local: [], igdb: [] };
-  const g = (name: string) => ({ id: `id-${name}`, name, slug: name.toLowerCase(), coverPath: null });
-  const i = (igdbId: number, name: string) => ({ igdbId, name, year: 2020, coverImageId: null });
+  const g = (name: string, coverPath: string | null = null) => ({ id: `id-${name}`, name, slug: name.toLowerCase(), coverPath });
+  const i = (igdbId: number, name: string, coverImageId: string | null = null) => ({ igdbId, name, year: 2020, coverImageId });
 
   it("prefers an exact local match, ignoring case and punctuation", () => {
     expect(pickGame("war-thunder", { local: [g("War Thunder")], igdb: [i(1, "War Thunder")] }))
-      .toEqual({ kind: "local", id: "id-War Thunder", name: "War Thunder" });
+      .toEqual({ kind: "local", id: "id-War Thunder", name: "War Thunder", cover: null });
   });
   it("then a local game the folder name contains", () => {
     expect(pickGame("General League Clips", { local: [g("League of Legends"), g("League")], igdb: [] }))
-      .toEqual({ kind: "local", id: "id-League", name: "League" });
+      .toEqual({ kind: "local", id: "id-League", name: "League", cover: null });
   });
   it("then IGDB's top result", () => {
     expect(pickGame("Valorant", { local: [], igdb: [i(126459, "Valorant"), i(2, "x")] }))
-      .toEqual({ kind: "igdb", igdbId: 126459, name: "Valorant" });
+      .toEqual({ kind: "igdb", igdbId: 126459, name: "Valorant", cover: null });
+  });
+  it("carries the cover, so a guess shows its art", () => {
+    expect(pickGame("Tarkov", { local: [g("Tarkov", "t-co1.jpg")], igdb: [] }))
+      .toMatchObject({ cover: "/media/covers/t-co1.jpg" });
+    expect(pickGame("Valorant", { local: [], igdb: [i(1, "Valorant", "co2mvt")] }))
+      .toMatchObject({ cover: "https://images.igdb.com/igdb/image/upload/t_thumb/co2mvt.jpg" });
   });
   it("gives nothing for a loose group or no results", () => {
     expect(pickGame("", { local: [g("x")], igdb: [] })).toBeNull();
