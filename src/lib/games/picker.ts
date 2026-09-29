@@ -3,6 +3,13 @@ import { coverPublicPath } from "@/lib/media/paths";
 import type { LocalGame } from "./search";
 
 export type SearchState = "idle" | "searching" | "done" | "failed";
+/** A real game is in the box: its art, or null for one with no cover. */
+export type Picked = { cover: string | null };
+
+/** Text to keep as a typed game, or null while the box still shows a pick. */
+export function typedText(text: string, picked: Picked | null): string | null {
+  return picked ? null : text.trim();
+}
 
 /** A picker row's art: your game's saved cover, or IGDB's thumbnail. */
 export function gameCover(game: LocalGame | IgdbGame): string | null {

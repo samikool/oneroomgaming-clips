@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { gameCover, pickerNotice } from "./picker";
+import { gameCover, pickerNotice, typedText } from "./picker";
 
 describe("gameCover", () => {
   it("serves your game's saved cover", () => {
@@ -33,5 +33,18 @@ describe("pickerNotice", () => {
   it("is quiet when there are results or nothing has been asked", () => {
     expect(pickerNotice({ search: "done", query: "valo", count: 2, igdbOnly: false })).toBeNull();
     expect(pickerNotice({ search: "idle", query: "", count: 0, igdbOnly: false })).toBeNull();
+  });
+});
+
+describe("typedText", () => {
+  it("is what was typed, trimmed", () => {
+    expect(typedText("  my game ", null)).toBe("my game");
+  });
+  it("is empty when the box was cleared, so the game can be removed", () => {
+    expect(typedText("  ", null)).toBe("");
+  });
+  it("is null while the box still holds a picked game, so a pick never turns back into text", () => {
+    expect(typedText("League of Legends", { cover: "/media/covers/x.jpg" })).toBeNull();
+    expect(typedText("Valorant", { cover: null })).toBeNull();
   });
 });

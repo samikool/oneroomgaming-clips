@@ -80,7 +80,8 @@ export function BulkEditDrawer({ ids, onClose, onSaved }: { ids: string[]; onClo
           initial=""
           onPickLocal={(g) => setGame({ op: "local", id: g.id, label: g.name })}
           onPickIgdb={(g) => setGame({ op: "igdb", igdbId: g.igdbId, label: g.name })}
-          onSubmitText={(t) => t.trim() && setGame({ op: "text", name: t.trim(), label: t.trim() })}
+          onSubmitText={(t) => t && setGame({ op: "text", name: t, label: t })}
+          onBlurText={(t) => t && setGame({ op: "text", name: t, label: t })}
         />
       </section>
 
