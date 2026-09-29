@@ -66,6 +66,8 @@ export const clips = sqliteTable(
      * number of NULLs share a unique index.
      */
     fingerprint: text("fingerprint"),
+    /** One "tagged" pass happens when the clip first becomes ready. */
+    peopleNotified: integer("people_notified", { mode: "boolean" }).notNull().default(false),
   },
   (t) => [
     index("clips_created_at_idx").on(t.createdAt),

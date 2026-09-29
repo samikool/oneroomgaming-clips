@@ -11,6 +11,8 @@ export type MediaInfo = {
   bitrate: number | null;
   container: string | null;
   sizeBytes: number;
+  /** The container's creation_time, epoch ms; not every recorder writes one. */
+  createdAt?: number | null;
 };
 
 export class ProbeError extends Error {
@@ -27,6 +29,12 @@ type FfStream = {
   width?: number;
   height?: number;
 };
+
+export function parseCreationTime(tags: Record<string, string> | undefined): number | null {
+  const raw = tags?.creation_time;
+  const ms = raw ? Date.parse(raw) : Number.NaN;
+  return Number.isFinite(ms) ? ms : null;
+}
 
 export async function probeFile(path: string): Promise<MediaInfo> {
   let sizeBytes: number;
@@ -55,7 +63,7 @@ export async function probeFile(path: string): Promise<MediaInfo> {
     throw new ProbeError(path, `exit code ${exitCode}`);
   }
 
-  let parsed: { streams?: FfStream[]; format?: Record<string, string> };
+  let parsed: { streams?: FfStream[]; format?: Record<string, string> & { tags?: Record<string, string> } };
 
   try {
     parsed = JSON.parse(stdout);
@@ -84,5 +92,6 @@ export async function probeFile(path: string): Promise<MediaInfo> {
     bitrate: Number.isFinite(bitrate) ? bitrate : null,
     container: parsed.format?.format_name ?? null,
     sizeBytes,
+    createdAt: parseCreationTime(parsed.format?.tags),
   };
 }

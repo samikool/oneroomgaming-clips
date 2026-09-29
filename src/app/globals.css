@@ -471,6 +471,11 @@ button:hover .clip-tile img, button:focus-visible .clip-tile img { transform: sc
   display: flex; align-items: flex-end; gap: 10px; padding: 10px 12px;
   background: var(--color-surface-raised); border: 1px solid var(--color-line); border-radius: 4px;
 }
+.upload-group { border: 1px solid var(--color-line); border-radius: 0.75rem; padding: 1rem; background: var(--color-surface); }
+.upload-group-head { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1rem; }
+.upload-group-fields { display: grid; gap: 0.5rem; }
+@media (min-width: 900px) { .upload-group-fields { grid-template-columns: 2fr 1fr 1fr; align-items: end; } }
+.guess-badge { margin-left: 0.35rem; padding: 0 0.35rem; border-radius: 999px; font-size: 0.65rem; background: var(--color-surface-raised); color: var(--color-accent); }
 @media (prefers-reduced-motion: reduce) {
   .tray, .pill { animation: none; transition: none; }
   .spinner { animation: none; width: auto; height: auto; border: 0; }

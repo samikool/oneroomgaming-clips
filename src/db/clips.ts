@@ -1,4 +1,5 @@
 import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { plausibleRecordedAt } from "@/lib/media/recorded";
 import { ulid } from "ulid";
 import type { Db } from "./client";
 import {
@@ -64,6 +65,13 @@ export function createClip(
 }
 
 export function applyProbe(db: Db, clipId: string, info: MediaInfo): Clip {
+  // The video's own stamp fills an empty date only: a date from the filename
+  // or the uploader always wins, and zeroed stamps are not dates.
+  const current = getClip(db, clipId);
+  const fromVideo =
+    current && current.recordedAt === null && info.createdAt != null && plausibleRecordedAt(info.createdAt)
+      ? { recordedAt: new Date(info.createdAt) }
+      : {};
   return db
     .update(clips)
     .set({
@@ -73,6 +81,7 @@ export function applyProbe(db: Db, clipId: string, info: MediaInfo): Clip {
       videoCodec: info.videoCodec,
       audioCodec: info.audioCodec,
       sizeBytes: info.sizeBytes,
+      ...fromVideo,
     })
     .where(eq(clips.id, clipId))
     .returning()

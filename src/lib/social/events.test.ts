@@ -1,11 +1,12 @@
 import { beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import { createDb, type Db } from "@/db/client";
 import { upsertUser } from "@/db/users";
-import { createClip } from "@/db/clips";
+import { createClip, setClipStatus } from "@/db/clips";
+import { setClipParticipants } from "@/db/metadata";
 import { addComment } from "@/db/comments";
 import { likeCount } from "@/db/likes";
 import { listNotifications } from "@/db/notifications";
-import { onComment, onLike, onParticipantsChanged, onTheaterEvent, onUnlike } from "./events";
+import { onClipReady, onComment, onLike, onParticipantsChanged, onTheaterEvent, onUnlike } from "./events";
 
 // Keep publish offline: with no REALTIME_URL it returns false without a request.
 // (mock.module would leak into publish.test.ts, which runs in the same process.)
@@ -83,9 +84,54 @@ describe("social events", () => {
   });
 
   it("tagging notifies only the newly added", async () => {
+    setClipStatus(db, clipId, "ready");
+    await onClipReady(db, clipId); // every ready clip has had its pass
     await onParticipantsChanged(db, clipId, "sam", ["kobe"], ["kobe", "pat"]);
     const patId = upsertUser(db, { username: "pat", email: null, displayName: null }).id;
     expect(listNotifications(db, patId).map((n) => n.type)).toEqual(["tagged"]);
     expect(listNotifications(db, kobe)).toHaveLength(0);
+  });
+});
+
+describe("people notifications wait for ready", () => {
+  it("edits while processing notify nobody; ready notifies everyone then in People, once", async () => {
+    setClipStatus(db, clipId, "processing");
+    setClipParticipants(db, clipId, ["kobe"]);
+    await onParticipantsChanged(db, clipId, "sam", [], ["kobe"]);
+    expect(listNotifications(db, kobe)).toHaveLength(0);
+
+    setClipParticipants(db, clipId, ["kobe", "pat"]);
+    setClipStatus(db, clipId, "ready");
+    await onClipReady(db, clipId);
+    expect(listNotifications(db, kobe).map((n) => n.type)).toEqual(["tagged"]);
+    expect(listNotifications(db, kobe)[0].actors).toEqual(["sam"]);
+
+    await onClipReady(db, clipId); // a reprocess reaching ready again
+    expect(listNotifications(db, kobe)).toHaveLength(1);
+  });
+
+  it("never notifies the uploader about their own clip", async () => {
+    setClipStatus(db, clipId, "processing");
+    setClipParticipants(db, clipId, ["sam"]);
+    setClipStatus(db, clipId, "ready");
+    await onClipReady(db, clipId);
+    expect(listNotifications(db, sam)).toHaveLength(0);
+  });
+
+  it("a normal edit on a ready clip still notifies right away", async () => {
+    setClipStatus(db, clipId, "ready");
+    await onClipReady(db, clipId); // every ready clip has had its pass
+    await onParticipantsChanged(db, clipId, "sam", [], ["kobe"]);
+    expect(listNotifications(db, kobe)).toHaveLength(1);
+  });
+});
+
+describe("tagging during a reprocess", () => {
+  it("notifies right away once the clip's ready pass has run", async () => {
+    setClipStatus(db, clipId, "ready");
+    await onClipReady(db, clipId);
+    setClipStatus(db, clipId, "pending"); // an admin reprocess
+    await onParticipantsChanged(db, clipId, "sam", [], ["kobe"]);
+    expect(listNotifications(db, kobe).map((n) => n.type)).toEqual(["tagged"]);
   });
 });

@@ -3,8 +3,11 @@ import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createDb, type Db } from "@/db/client";
-import { listAllClips } from "@/db/clips";
-import { jobs, users } from "@/db/schema";
+import { createClip, listAllClips } from "@/db/clips";
+import { getClipMetadata, setClipGame } from "@/db/metadata";
+import { deleteGame } from "@/db/admin/games-tags";
+import { upsertUser } from "@/db/users";
+import { games, jobs, users } from "@/db/schema";
 import { createUploadService, progressPercent, UPLOAD_TTL_MS } from "./server";
 import { runOnce } from "@/lib/jobs/runner";
 import { scanIncoming } from "@/lib/ingest/scan";
@@ -213,4 +216,39 @@ describe("duplicate guard", () => {
     expect((await patch(path, 0, Buffer.from("abcdef"))).status).toBe(204);
     expect(listAllClips(db)[0].fingerprint).toBeNull();
   });
+});
+
+const b64 = (s: string) => Buffer.from(s).toString("base64");
+
+it("applies game, tags, people and recorded time from the upload", async () => {
+  upsertUser(db, { username: "ben", email: null, displayName: null });
+  const seed = createClip(db, { title: "seed", originalFilename: "s.mp4", sizeBytes: 1 }).id;
+  setClipGame(db, seed, "Apex");
+  const gameId = db.select().from(games).get()!.id;
+  const at = Date.UTC(2022, 1, 17, 21, 14);
+  const path = await create(6, "ace.mp4",
+    `,game ${b64(`local:${gameId}`)},tags ${b64("Ace,clutch")},people ${b64("ben,ghost")},recordedAt ${b64(String(at))}`);
+  expect((await patch(path, 0, Buffer.from("abcdef"))).status).toBe(204);
+  const clip = listAllClips(db).find((c) => c.title === "My ace")!;
+  expect(clip.recordedAt?.getTime()).toBe(at);
+  expect(getClipMetadata(db, clip.id)).toMatchObject({ game: { id: gameId }, tags: ["ace", "clutch"], participants: ["ben"] });
+});
+
+it("creates a free-text game from the upload", async () => {
+  const path = await create(6, "ace.mp4", `,game ${b64("text:Custom Night")}`);
+  await patch(path, 0, Buffer.from("abcdef"));
+  const clip = listAllClips(db)[0];
+  expect(getClipMetadata(db, clip.id).game?.name).toBe("Custom Night");
+});
+
+it("still becomes a clip when its game was deleted mid-upload", async () => {
+  const seed = createClip(db, { title: "seed", originalFilename: "s.mp4", sizeBytes: 1 }).id;
+  setClipGame(db, seed, "Apex");
+  const gameId = db.select().from(games).get()!.id;
+  const path = await create(6, "ace.mp4", `,game ${b64(`local:${gameId}`)}`);
+  deleteGame(db, gameId, { force: true });
+  expect((await patch(path, 0, Buffer.from("abcdef"))).status).toBe(204);
+  const clip = listAllClips(db).find((c) => c.title === "My ace")!;
+  expect(clip).toBeDefined();
+  expect(getClipMetadata(db, clip.id).game).toBeNull();
 });

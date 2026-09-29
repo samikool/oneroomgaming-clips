@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { clips, users } from "@/db/schema";
 import type { CommentRow } from "@/db/comments";
@@ -71,7 +71,11 @@ export async function onComment(db: Db, comment: CommentRow): Promise<void> {
   );
 }
 
-/** Tells the people newly added as participants. */
+function readyPassDone(db: Db, clipId: string): boolean {
+  return db.select({ done: clips.peopleNotified }).from(clips).where(eq(clips.id, clipId)).get()?.done ?? false;
+}
+
+/** Tells the people newly added as participants — once the clip is watchable. */
 export async function onParticipantsChanged(
   db: Db,
   clipId: string,
@@ -79,8 +83,29 @@ export async function onParticipantsChanged(
   before: string[],
   after: string[],
 ): Promise<void> {
+  // Until the clip's first ready, onClipReady will tell everyone at once.
+  // After it (a reprocess included) tags notify as they happen.
+  if (!readyPassDone(db, clipId)) return;
   const added = after.filter((u) => !before.includes(u));
   await deliver(db, { kind: "tagged", actor, added }, clipId);
+}
+
+/**
+ * The clip just became ready: tag everyone in it, the first time only. The
+ * conditional update is the claim, so two runners can't both notify, and a
+ * reprocess reaching ready again sends nothing.
+ */
+export async function onClipReady(db: Db, clipId: string): Promise<void> {
+  const claimed = db
+    .update(clips)
+    .set({ peopleNotified: true })
+    .where(and(eq(clips.id, clipId), eq(clips.peopleNotified, false)))
+    .returning({ id: clips.id })
+    .get();
+  if (!claimed) return;
+  const participants = getClipMetadata(db, clipId).participants;
+  if (participants.length === 0) return;
+  await deliver(db, { kind: "tagged", actor: uploaderOf(db, clipId) ?? "", added: participants }, clipId);
 }
 
 export async function onLike(

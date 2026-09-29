@@ -10,6 +10,7 @@ import {
   thumbPublicPath, thumbsDir,
 } from "@/lib/media/paths";
 import { probeFile } from "@/lib/media/probe";
+import { onClipReady } from "@/lib/social/events";
 import { extractThumbnail, remuxFaststart } from "@/lib/media/transform";
 import type { JobContext, JobHandler } from "./types";
 
@@ -80,6 +81,7 @@ const thumbnail: JobHandler = async (ctx, job) => {
   setClipThumb(ctx.db, job.clipId, thumbPublicPath(job.clipId));
   setClipStatus(ctx.db, job.clipId, "ready");
   removeSourceArtifacts(ctx.env, job.clipId);
+  await onClipReady(ctx.db, job.clipId);
 };
 
 const transcode: JobHandler = async () => {

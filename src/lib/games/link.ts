@@ -82,6 +82,15 @@ export async function pickIgdbGameForClip(
   return { ok: true, name };
 }
 
+/** The local game for an IGDB entry, linked and with its cover. Null when IGDB can't answer. */
+export async function ensureIgdbGame(db: Db, env: Env, igdb: Igdb, igdbId: number): Promise<string | null> {
+  const entry = await fetchEntry(igdb, igdbId);
+  if ("ok" in entry) return null;
+  const outcome = resolveIgdbGame(db, { igdbId: entry.igdbId, name: entry.name, year: entry.year });
+  await finish(db, env, igdb, outcome, entry);
+  return outcome.gameId;
+}
+
 export function mergeGamesWithCovers(db: Db, env: Env, fromId: string, intoId: string): number {
   const cover = gameCoverPath(db, fromId);
   const moved = mergeGames(db, fromId, intoId);
