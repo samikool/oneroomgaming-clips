@@ -10,6 +10,7 @@ import {
   thumbPublicPath, thumbsDir,
 } from "@/lib/media/paths";
 import { probeFile } from "@/lib/media/probe";
+import { waitUntilReadable } from "@/lib/media/settle";
 import { onClipReady } from "@/lib/social/events";
 import { extractThumbnail, remuxFaststart } from "@/lib/media/transform";
 import type { JobContext, JobHandler } from "./types";
@@ -26,7 +27,9 @@ function incomingPath(ctx: JobContext, clipId: string): string {
 }
 
 const probe: JobHandler = async (ctx, job) => {
-  const info = await probeFile(incomingPath(ctx, job.clipId));
+  const input = incomingPath(ctx, job.clipId);
+  await waitUntilReadable(input);
+  const info = await probeFile(input);
   applyProbe(ctx.db, job.clipId, info);
 
   if (!isBrowserPlayable(info.videoCodec, info.audioCodec, info.pixelFormat)) {
