@@ -72,13 +72,13 @@ describe("browseReducer", () => {
     expect(s.tabs.new.clips[0].title).toBe("x");
   });
 
-  it("keeps the uploader, game and like count a clip.updated can't carry", () => {
+  it("keeps the like count, and an uploader and game the message leaves out", () => {
     const rich = clip("a", { uploader: "sam", game: { name: "Apex", slug: "apex" }, likeCount: 3 });
     const withRich = initialBrowseState({ new: { clips: [rich], next: null }, trending: page([]), top: page([]), random: page([]) });
-    // The broadcast is built without joins: uploader and game null, likes 0.
+    // No viewer on a broadcast, so likes arrive 0; fields not sent at all are kept.
     const s = browseReducer(withRich, {
       type: "live",
-      message: { t: "clip.updated", clip: clip("a", { status: "ready", uploader: null, game: null }) },
+      message: { t: "clip.updated", clip: clip("a", { status: "ready" }) },
       filtered: false,
     });
     expect(s.tabs.new.clips[0].uploader).toBe("sam");
@@ -126,5 +126,23 @@ describe("scopeLive", () => {
     const msg = { t: "clip.removed", clipId: "p" } as const;
     expect(scopeLive("theater", msg, waiting)).toBe(msg);
     expect(waiting.size).toBe(0);
+  });
+});
+
+describe("clip.updated and the game chip", () => {
+  const withGame = () =>
+    initialBrowseState({
+      new: { clips: [clip("a", { game: { name: "Apex", slug: "apex" } })], next: null },
+      trending: page([]), top: page([]), random: page([]),
+    });
+
+  it("shows a changed game", () => {
+    const s = browseReducer(withGame(), { type: "live", message: { t: "clip.updated", clip: clip("a", { game: { name: "Valorant", slug: "valorant" } }) }, filtered: false });
+    expect(s.tabs.new.clips[0].game).toEqual({ name: "Valorant", slug: "valorant" });
+  });
+
+  it("clears a game that was cleared", () => {
+    const s = browseReducer(withGame(), { type: "live", message: { t: "clip.updated", clip: clip("a", { game: null }) }, filtered: false });
+    expect(s.tabs.new.clips[0].game).toBeNull();
   });
 });

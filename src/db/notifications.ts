@@ -1,7 +1,7 @@
 import { and, count, desc, eq, inArray, isNull, lt } from "drizzle-orm";
 import { ulid } from "ulid";
 import type { Db } from "./client";
-import { clips, comments, notifications, type NotificationType } from "./schema";
+import { clips, comments, notifications, users, type NotificationType } from "./schema";
 import type { NotificationSummary } from "@/lib/realtime/envelope";
 
 export type { NotificationSummary };
@@ -44,6 +44,17 @@ function summarize(db: Db, rows: Row[]): NotificationSummary[] {
           // A deleted comment's words never leave the database.
           .map((c) => [c.id, c.deletedAt ? null : c.body] as const),
   );
+  const bulkRecipients = [...new Set(rows.filter((r) => r.type === "tagged_bulk").map((r) => r.recipientId))];
+  const usernames = new Map(
+    bulkRecipients.length === 0
+      ? []
+      : db
+          .select({ id: users.id, username: users.authentikUsername })
+          .from(users)
+          .where(inArray(users.id, bulkRecipients))
+          .all()
+          .map((u) => [u.id, u.username] as const),
+  );
 
   return rows.map((row) => {
     const body = row.commentId ? bodies.get(row.commentId) : null;
@@ -59,6 +70,8 @@ function summarize(db: Db, rows: Row[]): NotificationSummary[] {
       source: row.source,
       updatedAt: row.updatedAt.getTime(),
       read: row.readAt !== null,
+      count: row.count,
+      recipient: row.type === "tagged_bulk" ? usernames.get(row.recipientId) ?? null : null,
     };
   });
 }
@@ -81,6 +94,7 @@ export function notify(
     commentId = null,
     positionMs = null,
     source = null,
+    count = null,
     now = Date.now(),
   }: {
     recipientId: string;
@@ -90,6 +104,8 @@ export function notify(
     commentId?: string | null;
     positionMs?: number | null;
     source?: "comment" | "chat" | null;
+    /** tagged_bulk: how many clips. */
+    count?: number | null;
     now?: number;
   },
 ): NotificationSummary | null {
@@ -98,7 +114,8 @@ export function notify(
 
     const at = new Date(now);
     const group =
-      type === "mention"
+      // A mention or a bulk tag is its own moment; neither joins a group.
+      type === "mention" || type === "tagged_bulk"
         ? undefined
         : tx
             .select()
@@ -137,6 +154,7 @@ export function notify(
             actors: JSON.stringify([actor]),
             positionMs,
             source,
+            count,
             createdAt: at,
             updatedAt: at,
             readAt: null,

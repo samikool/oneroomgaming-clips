@@ -6,7 +6,7 @@ import { setClipParticipants } from "@/db/metadata";
 import { addComment } from "@/db/comments";
 import { likeCount } from "@/db/likes";
 import { listNotifications } from "@/db/notifications";
-import { onClipReady, onComment, onLike, onParticipantsChanged, onTheaterEvent, onUnlike } from "./events";
+import { onBulkTagged, onClipReady, onComment, onLike, onParticipantsChanged, onTheaterEvent, onUnlike } from "./events";
 
 // Keep publish offline: with no REALTIME_URL it returns false without a request.
 // (mock.module would leak into publish.test.ts, which runs in the same process.)
@@ -133,5 +133,45 @@ describe("tagging during a reprocess", () => {
     setClipStatus(db, clipId, "pending"); // an admin reprocess
     await onParticipantsChanged(db, clipId, "sam", [], ["kobe"]);
     expect(listNotifications(db, kobe).map((n) => n.type)).toEqual(["tagged"]);
+  });
+});
+
+describe("bulk tagging", () => {
+  const readyClips = async (n: number) => {
+    const ids: string[] = [];
+    for (let i = 0; i < n; i++) {
+      const id = createClip(db, { title: `c${i}`, originalFilename: `c${i}.mp4`, sizeBytes: 1, uploaderId: sam }).id;
+      setClipStatus(db, id, "ready");
+      await onClipReady(db, id);
+      ids.push(id);
+    }
+    return ids;
+  };
+
+  it("tells someone per clip for 3 clips", async () => {
+    const ids = await readyClips(3);
+    await onBulkTagged(db, "sam", new Map([["kobe", ids]]));
+    expect(listNotifications(db, kobe).map((n) => n.type)).toEqual(["tagged", "tagged", "tagged"]);
+  });
+
+  it("sends one summary for 4 or more", async () => {
+    const ids = await readyClips(4);
+    await onBulkTagged(db, "sam", new Map([["kobe", ids]]));
+    const [n, ...rest] = listNotifications(db, kobe);
+    expect(rest).toHaveLength(0);
+    expect(n).toMatchObject({ type: "tagged_bulk", count: 4, recipient: "kobe", actors: ["sam"] });
+  });
+
+  it("leaves out clips still processing — they tell at ready", async () => {
+    const ids = await readyClips(3);
+    const pending = createClip(db, { title: "p", originalFilename: "p.mp4", sizeBytes: 1, uploaderId: sam }).id;
+    await onBulkTagged(db, "sam", new Map([["kobe", [...ids, pending]]]));
+    expect(listNotifications(db, kobe).map((n) => n.type)).toEqual(["tagged", "tagged", "tagged"]);
+  });
+
+  it("never tells the editor about their own edit", async () => {
+    const ids = await readyClips(5);
+    await onBulkTagged(db, "sam", new Map([["sam", ids]]));
+    expect(listNotifications(db, sam)).toHaveLength(0);
   });
 });

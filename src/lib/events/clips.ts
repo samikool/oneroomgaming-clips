@@ -1,4 +1,4 @@
-import { getClip } from "@/db/clips";
+import { getClip, hydrateGridClips } from "@/db/clips";
 import type { Db } from "@/db/client";
 import type { GridClip } from "@/db/clips";
 import type { Clip } from "@/db/schema";
@@ -45,7 +45,9 @@ async function announce(
     return;
   }
 
-  await publish({ t, clip: toSummary(clip) }, env);
+  // Joined, so the game and uploader on the wire are the real ones — a
+  // cleared game arrives as null rather than looking like "not sent".
+  await publish({ t, clip: toSummary(hydrateGridClips(db, [clip])[0]) }, env);
 }
 
 export function announceClipAdded(
@@ -62,6 +64,19 @@ export function announceClipUpdated(
   env?: Partial<NodeJS.ProcessEnv>,
 ): Promise<void> {
   return announce(db, clipId, "clip.updated", env);
+}
+
+const ANNOUNCE_BATCH = 25;
+
+/**
+ * A bulk edit's announcements, 25 at a time. One by one, a realtime that
+ * hangs rather than refuses would hold the save open for 2 s per clip — the
+ * rows are long committed, but the editor sees "Saving…" for minutes.
+ */
+export async function announceClipsUpdated(db: Db, ids: string[], env?: Partial<NodeJS.ProcessEnv>): Promise<void> {
+  for (let i = 0; i < ids.length; i += ANNOUNCE_BATCH) {
+    await Promise.allSettled(ids.slice(i, i + ANNOUNCE_BATCH).map((id) => announceClipUpdated(db, id, env)));
+  }
 }
 
 /**

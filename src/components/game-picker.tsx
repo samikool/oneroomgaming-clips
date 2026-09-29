@@ -80,7 +80,9 @@ export function GamePicker({
     } else if (event.key === "ArrowUp" && options.length > 0) {
       event.preventDefault();
       setActive((i) => (i <= 0 ? options.length - 1 : i - 1));
-    } else if (event.key === "Escape") {
+    } else if (event.key === "Escape" && open) {
+      // Only this list closes: not a dialog around it, not select mode.
+      event.preventDefault();
       setOpen(false);
     } else if (event.key === "Enter") {
       event.preventDefault();

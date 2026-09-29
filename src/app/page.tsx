@@ -7,7 +7,7 @@ import { listBrowseOptions } from "@/db/browse-options";
 import { totalDiskBytes } from "@/db/clips";
 import { sinceLastVisit } from "@/db/since";
 import { SinceLastVisit } from "@/components/since-last-visit";
-import { parseBrowseQuery, SORTS } from "@/lib/browse/query";
+import { parseBrowseQuery, serializeBrowseQuery, SORTS } from "@/lib/browse/query";
 import { browseTabs } from "@/lib/browse/tabs";
 import { requireUser } from "@/lib/session";
 
@@ -47,10 +47,15 @@ export default async function Home({
       {since && <SinceLastVisit data={since} visitKey={user.visitStartedAt?.getTime()} />}
 
       <ClipBrowser
+        // The browser keeps its own query after mount (filters use
+        // replaceState, no navigation). A real navigation to a different
+        // query — a notification's filtered link — must start it fresh.
+        key={serializeBrowseQuery(query)}
         initialQuery={query}
         initialPages={initialPages}
         scope="home"
         density="comfortable"
+        selectable
         me={user.authentikUsername}
         options={listBrowseOptions(db)}
       />

@@ -156,7 +156,7 @@ export function NotificationsTray({ notifications, onClose }: { notifications: N
                     <span className="min-w-0 flex-1">
                       <span className="notification-text">
                         {lead}
-                        <em>{title}</em>
+                        {title && <em>{title}</em>}
                         {tail}
                       </span>
                       <span className="notification-time">{formatAgo(n.updatedAt)}</span>

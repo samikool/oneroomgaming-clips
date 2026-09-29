@@ -46,3 +46,12 @@ export function selectAll(ids: string[]): Set<string> {
 export function isAllSelected(selected: Set<string>, ids: string[]): boolean {
   return ids.length > 0 && ids.every((id) => selected.has(id));
 }
+
+/**
+ * Escape leaves select mode — unless something else already used it: a
+ * filter popover closing, the search box clearing, the game picker's list.
+ * Throwing away a 30-clip selection for those would be a trap.
+ */
+export function leavesSelectMode(event: { key: string; defaultPrevented: boolean }): boolean {
+  return event.key === "Escape" && !event.defaultPrevented;
+}

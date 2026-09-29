@@ -32,13 +32,39 @@ export function BrowserCard({
   scope,
   actions,
   like,
+  selecting = false,
+  selected = false,
+  onToggle,
 }: {
   clip: ClipSummary;
   scope: Scope;
   actions?: ReactNode;
   like?: ReactNode;
+  /** Home's select mode: the tile toggles instead of opening the clip. */
+  selecting?: boolean;
+  selected?: boolean;
+  onToggle?: () => void;
 }) {
   const browse = useBrowseActions();
+
+  if (selecting) {
+    return (
+      <div>
+        <button
+          type="button"
+          aria-pressed={selected}
+          className={`relative block w-full cursor-pointer text-left${selected ? " clip-selected" : ""}`}
+          onClick={onToggle}
+        >
+          <ClipTile clip={clip} />
+          <span className={`clip-check${selected ? " clip-check-on" : ""}`} aria-hidden="true" />
+          <span className="sr-only">{selected ? "Selected" : "Not selected"}</span>
+        </button>
+        {/* Footer links would navigate away mid-selection; the like stays. */}
+        <div className="browser-card-foot">{like ?? <LikeCount clip={clip} />}</div>
+      </div>
+    );
+  }
 
   const footer = (
     <div className="browser-card-foot">

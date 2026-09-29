@@ -162,3 +162,26 @@ export async function onTheaterEvent(db: Db, event: ReportedEvent): Promise<bool
     }
   }
 }
+
+export const BULK_THRESHOLD = 3;
+
+/**
+ * People a bulk edit added. Only clips whose ready pass has run count (the
+ * rest are told at ready); more than BULK_THRESHOLD of them makes one summary
+ * rather than a notification per clip. Never the editor.
+ */
+export async function onBulkTagged(db: Db, actor: string, added: Map<string, string[]>): Promise<void> {
+  for (const [username, clipIds] of added) {
+    if (username === actor) continue;
+    const ready = clipIds.filter((id) => readyPassDone(db, id));
+    if (ready.length === 0) continue;
+    if (ready.length <= BULK_THRESHOLD) {
+      for (const clipId of ready) await deliver(db, { kind: "tagged", actor, added: [username] }, clipId);
+      continue;
+    }
+    const recipientId = userIdOf(db, username);
+    if (!recipientId) continue;
+    const notification = notify(db, { recipientId, type: "tagged_bulk", clipId: ready[0], actor, count: ready.length });
+    if (notification) await publish({ t: "notification", notification }, undefined, { to: username });
+  }
+}

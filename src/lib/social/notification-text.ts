@@ -1,3 +1,4 @@
+import { filterHref } from "@/lib/browse/query";
 import type { NotificationSummary } from "@/lib/realtime/envelope";
 
 /** "Kobe", "Kobe and Sam", "Kobe, Sam and Pat", "Kobe, Sam and 2 others". */
@@ -30,6 +31,8 @@ export function notificationText(
       return { lead: `${who} commented on `, title, tail: `, a clip you're in${quote}` };
     case "tagged":
       return { lead: `${who} tagged you in `, title, tail: "" };
+    case "tagged_bulk":
+      return { lead: `${who} tagged you in ${n.count ?? "several"} clips`, title: "", tail: "" };
     case "mention":
       return n.source === "chat"
         ? { lead: `${who} mentioned you in theater chat during `, title, tail: "" }
@@ -39,6 +42,8 @@ export function notificationText(
 
 /** The clip, at the comment's moment when it has one. */
 export function notificationHref(n: NotificationSummary): string {
+  // A bulk tag spans many clips: show all of the recipient's.
+  if (n.type === "tagged_bulk" && n.recipient) return filterHref("people", n.recipient);
   const base = `/clips/${n.clipId}`;
   return n.positionMs === null ? base : `${base}?t=${Math.floor(n.positionMs / 1000)}`;
 }
