@@ -2,9 +2,13 @@
 
 import { useState } from "react";
 import { GamePicker } from "@/components/game-picker";
+import { gameCover } from "@/lib/games/picker";
 import { effectivePeople, type BatchItem, type Group } from "@/lib/uploads/batch";
 import { fromLocalInput, toLocalInput, type GameChoice } from "@/lib/uploads/infer";
 import { useUploads } from "@/lib/uploads/provider";
+
+/** A chosen game shows its art in the box; typed text does not. */
+const pickOf = (game: GameChoice | null | undefined) => (game && game.kind !== "text" ? { cover: game.cover ?? null } : undefined);
 
 const list = (text: string) => text.split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -54,12 +58,11 @@ function GroupBlock({ group, items }: { group: Group; items: BatchItem[] }) {
               Game {group.gameGuess && <span className="guess-badge">best guess</span>}
             </label>
             <GamePicker
-              // Remounts only to show a guess; once touched, the box is the user's.
-              key={group.gameTouched ? "touched" : group.game ? JSON.stringify(group.game) : "none"}
               label={`Game for ${group.folder || "loose files"}`}
               initial={group.game?.name ?? ""}
-              onPickLocal={(g) => choose({ kind: "local", id: g.id, name: g.name })}
-              onPickIgdb={(g) => choose({ kind: "igdb", igdbId: g.igdbId, name: g.name })}
+              initialPick={pickOf(group.game)}
+              onPickLocal={(g) => choose({ kind: "local", id: g.id, name: g.name, cover: gameCover(g) })}
+              onPickIgdb={(g) => choose({ kind: "igdb", igdbId: g.igdbId, name: g.name, cover: gameCover(g) })}
               onSubmitText={(text) => choose(text.trim() ? { kind: "text", name: text.trim() } : null)}
               onTextChange={() => touchGroup(group.folder)}
               onBlurText={keepTyped}
@@ -152,8 +155,9 @@ function ClipRow({ item }: { item: BatchItem }) {
           <GamePicker
             label={`Game for ${item.title}`}
             initial={item.game?.name ?? ""}
-            onPickLocal={(g) => setItem(item.key, { game: { kind: "local", id: g.id, name: g.name } })}
-            onPickIgdb={(g) => setItem(item.key, { game: { kind: "igdb", igdbId: g.igdbId, name: g.name } })}
+            initialPick={pickOf(item.game)}
+            onPickLocal={(g) => setItem(item.key, { game: { kind: "local", id: g.id, name: g.name, cover: gameCover(g) } })}
+            onPickIgdb={(g) => setItem(item.key, { game: { kind: "igdb", igdbId: g.igdbId, name: g.name, cover: gameCover(g) } })}
             onSubmitText={(text) => setItem(item.key, { game: text.trim() ? { kind: "text", name: text.trim() } : undefined })}
           />
         </div>

@@ -50,7 +50,7 @@ export function ClipMetadataPanel({
 
         <div className="metadata-form">
           <span className="metadata-label">Game</span>
-          <GameField clipId={clipId} initial={metadata.game?.name ?? ""} />
+          <GameField clipId={clipId} initial={metadata.game?.name ?? ""} coverPath={metadata.game ? metadata.game.coverPath : undefined} />
         </div>
 
         <form className="metadata-form" action={saveParticipants.bind(null, clipId)}>
@@ -112,7 +112,8 @@ export function ClipMetadataPanel({
   );
 }
 
-function GameField({ clipId, initial }: { clipId: string; initial: string }) {
+/** `coverPath` is undefined when the clip has no game, null for a game without art. */
+function GameField({ clipId, initial, coverPath }: { clipId: string; initial: string; coverPath: string | null | undefined }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -127,6 +128,7 @@ function GameField({ clipId, initial }: { clipId: string; initial: string }) {
       <GamePicker
         label="Game"
         initial={initial}
+        initialPick={coverPath === undefined ? undefined : { cover: coverPath && coverPublicPath(coverPath) }}
         pending={pending}
         onPickLocal={(game) => saveText(game.name)}
         onSubmitText={saveText}
