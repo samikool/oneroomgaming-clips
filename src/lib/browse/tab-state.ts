@@ -88,11 +88,12 @@ function live(state: BrowseState, message: ServerMessage, filtered: boolean): Br
           c.id === message.clip.id
             ? {
                 ...message.clip,
-                // The broadcast is built without joins or a viewer: uploader and
-                // game arrive null and likes 0. What the card already knows wins;
-                // clip.likes is what moves the count.
-                uploader: message.clip.uploader ?? c.uploader,
-                game: message.clip.game ?? c.game,
+                // The broadcast carries the real uploader and game (null when
+                // there is none), but no viewer: likes arrive 0, so the card's
+                // own count stays; clip.likes is what moves it. A message
+                // without the fields at all keeps what the card knows.
+                uploader: message.clip.uploader !== undefined ? message.clip.uploader : c.uploader,
+                game: message.clip.game !== undefined ? message.clip.game : c.game,
                 likeCount: c.likeCount,
                 likedByMe: c.likedByMe,
               }

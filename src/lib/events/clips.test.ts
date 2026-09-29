@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, spyOn } from "bun:test";
 import { createDb, type Db } from "@/db/client";
 import { createClip, setClipStatus } from "@/db/clips";
-import { announceClipAdded, announceClipUpdated, toSummary } from "@/lib/events/clips";
+import { setClipGame } from "@/db/metadata";
+import { announceClipAdded, announceClipUpdated, announceClipsUpdated, toSummary } from "@/lib/events/clips";
 
 let db: Db;
 const env = { REALTIME_URL: "http://realtime:3001", EMIT_SECRET: "s3cret" };
@@ -74,5 +75,39 @@ describe("announceClipUpdated", () => {
     await announceClipUpdated(db, clip.id, env);
     expect(warn).toHaveBeenCalled(); // it logged rather than threw
     warn.mockRestore();
+  });
+});
+
+describe("clip.updated carries the clip's game", () => {
+  it("sends the game after it changes, and null once cleared", async () => {
+    const bodies = captureFetch();
+    const id = createClip(db, { title: "a", originalFilename: "a.mp4", sizeBytes: 1 }).id;
+    setClipGame(db, id, "Valorant");
+    await announceClipUpdated(db, id, env);
+    expect(JSON.stringify(bodies.at(-1))).toContain('"game":{"name":"Valorant","slug":"valorant"}');
+    setClipGame(db, id, null);
+    await announceClipUpdated(db, id, env);
+    expect(JSON.stringify(bodies.at(-1))).toContain('"game":null');
+  });
+});
+
+describe("announceClipsUpdated", () => {
+  it("announces every clip, several at a time rather than one by one", async () => {
+    let inFlight = 0;
+    let most = 0;
+    const sent: string[] = [];
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      inFlight += 1;
+      most = Math.max(most, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      sent.push((JSON.parse(String(init.body)) as { clip?: { id: string } }).clip?.id ?? "");
+      inFlight -= 1;
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+    const ids = Array.from({ length: 60 }, (_, i) => createClip(db, { title: `c${i}`, originalFilename: "c.mp4", sizeBytes: 1 }).id);
+    await announceClipsUpdated(db, ids, env);
+    expect(sent).toHaveLength(60);
+    expect(most).toBeGreaterThan(1);
+    expect(most).toBeLessThanOrEqual(25);
   });
 });

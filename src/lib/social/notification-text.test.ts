@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { NotificationSummary } from "@/lib/realtime/envelope";
+import { filterHref } from "@/lib/browse/query";
 import { notificationHref, notificationText } from "./notification-text";
 
 const names: Record<string, string> = { kobe: "Kobe", sam: "Sam", pat: "Pat", lee: "Lee" };
@@ -18,6 +19,8 @@ function n(over: Partial<NotificationSummary>): NotificationSummary {
     source: null,
     updatedAt: 1,
     read: false,
+    count: null,
+    recipient: null,
     ...over,
   };
 }
@@ -54,5 +57,18 @@ describe("notificationHref", () => {
   it("links to the clip, at the comment's time when there is one", () => {
     expect(notificationHref(n({}))).toBe("/clips/C1");
     expect(notificationHref(n({ positionMs: 12_500 }))).toBe("/clips/C1?t=12");
+  });
+});
+
+describe("tagged_bulk", () => {
+  const bulk: NotificationSummary = {
+    id: "n", type: "tagged_bulk", clipId: "c", clipTitle: "First", actors: ["sam"], commentId: null,
+    excerpt: null, positionMs: null, source: null, updatedAt: 0, read: false, count: 40, recipient: "kobe",
+  };
+
+  it("reads as a count and links to the recipient's clips", () => {
+    const text = notificationText(bulk, (u) => u.toUpperCase());
+    expect(text.lead + text.title + text.tail).toBe("SAM tagged you in 40 clips");
+    expect(notificationHref(bulk)).toBe(filterHref("people", "kobe"));
   });
 });

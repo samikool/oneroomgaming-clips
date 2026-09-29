@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { isAllSelected, pruneSelection, selectAll, toggleSelection } from "@/lib/clips/selection";
+import { isAllSelected, leavesSelectMode, pruneSelection, selectAll, toggleSelection } from "@/lib/clips/selection";
 
 describe("toggleSelection", () => {
   it("selects an unselected clip", () => {
@@ -92,5 +92,17 @@ describe("isAllSelected", () => {
 
   it("is false for an empty grid", () => {
     expect(isAllSelected(new Set(), [])).toBe(false);
+  });
+});
+
+describe("leavesSelectMode", () => {
+  it("leaves on an Escape nothing else handled", () => {
+    expect(leavesSelectMode({ key: "Escape", defaultPrevented: false })).toBe(true);
+  });
+  it("stays when a popover, the search box or the picker already used the Escape", () => {
+    expect(leavesSelectMode({ key: "Escape", defaultPrevented: true })).toBe(false);
+  });
+  it("ignores other keys", () => {
+    expect(leavesSelectMode({ key: "Enter", defaultPrevented: false })).toBe(false);
   });
 });

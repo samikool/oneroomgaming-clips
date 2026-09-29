@@ -166,7 +166,7 @@ export const likes = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.clipId] }), index("likes_clip_idx").on(t.clipId, t.createdAt)],
 );
 
-export type NotificationType = "like" | "comment" | "participant_comment" | "tagged" | "mention";
+export type NotificationType = "like" | "comment" | "participant_comment" | "tagged" | "tagged_bulk" | "mention";
 
 export const notifications = sqliteTable(
   "notifications",
@@ -180,6 +180,8 @@ export const notifications = sqliteTable(
     actors: text("actors").notNull(),
     positionMs: integer("position_ms"),
     source: text("source").$type<"comment" | "chat">(),
+    /** tagged_bulk only: how many clips. */
+    count: integer("count"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
     readAt: integer("read_at", { mode: "timestamp_ms" }),

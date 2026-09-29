@@ -106,6 +106,10 @@ export type NotificationSummary = {
   source: "comment" | "chat" | null;
   updatedAt: number;
   read: boolean;
+  /** tagged_bulk: how many clips. */
+  count: number | null;
+  /** tagged_bulk: the recipient's username, for the filtered link. */
+  recipient: string | null;
 };
 
 /**
