@@ -205,3 +205,80 @@ describe("probe handler (unplayable pixel format)", () => {
     })();
   });
 });
+
+describe("pipeline (audio the browser can't play)", () => {
+  // Real shapes from the old shared folder: League clips as VP9 + Vorbis WebM,
+  // and camera .mov files with H.264 + uncompressed PCM. The video plays as it
+  // is; only the audio has to become AAC for the mp4.
+
+  async function sample(path: string, args: string[]) {
+    const proc = Bun.spawn([
+      "ffmpeg", "-loglevel", "error", "-y",
+      "-f", "lavfi", "-i", "testsrc=duration=2:size=320x240:rate=10",
+      "-f", "lavfi", "-i", "sine=duration=2:sample_rate=48000",
+      "-pix_fmt", "yuv420p", ...args, path,
+    ], { stdout: "pipe", stderr: "pipe" });
+    await proc.exited;
+  }
+
+  async function codecs(path: string): Promise<string> {
+    const proc = Bun.spawn([
+      "ffprobe", "-v", "error", "-show_entries", "stream=codec_name", "-of", "csv=p=0", path,
+    ], { stdout: "pipe", stderr: "pipe" });
+    const out = await new Response(proc.stdout).text();
+    await proc.exited;
+    return out.trim().split("\n").join("+");
+  }
+
+  async function probeAndRemux(clipId: string) {
+    enqueueJob(db, clipId, "probe");
+    await handlers.probe({ db, env }, claimNextJob(db)!);
+    const remuxJob = db.select().from(jobsTable).where(eq(jobsTable.type, "remux")).get();
+    if (remuxJob) await handlers.remux({ db, env }, remuxJob);
+  }
+
+  it("keeps vp9 video and converts vorbis audio to aac", async () => {
+    const clip = createClip(db, { title: "webm", originalFilename: "a.webm", sizeBytes: 0 });
+    // Uploads land as <id>.mp4 whatever they contain.
+    await sample(join(root, "incoming", `${clip.id}.mp4`), [
+      "-c:v", "libvpx-vp9", "-c:a", "libvorbis", "-f", "webm",
+    ]);
+
+    await probeAndRemux(clip.id);
+
+    expect(await codecs(join(root, "clips", `${clip.id}.mp4`))).toBe("vp9+aac");
+    const updated = db.select().from(clipsTable).where(eq(clipsTable.id, clip.id)).get();
+    expect(updated?.status).toBe("processing");
+    expect(updated?.audioCodec).toBe("aac");
+  });
+
+  it("keeps h264 video and converts pcm audio to aac", async () => {
+    const clip = createClip(db, { title: "mov", originalFilename: "a.mov", sizeBytes: 0 });
+    await sample(join(root, "incoming", `${clip.id}.mp4`), [
+      "-c:v", "libx264", "-c:a", "pcm_s16le", "-f", "mov",
+    ]);
+
+    await probeAndRemux(clip.id);
+
+    expect(await codecs(join(root, "clips", `${clip.id}.mp4`))).toBe("h264+aac");
+    const updated = db.select().from(clipsTable).where(eq(clipsTable.id, clip.id)).get();
+    expect(updated?.audioCodec).toBe("aac");
+  });
+
+  it("leaves aac audio alone", async () => {
+    const clip = createClip(db, { title: "mp4", originalFilename: "a.mp4", sizeBytes: 0 });
+    const input = join(root, "incoming", `${clip.id}.mp4`);
+    await sample(input, ["-c:v", "libx264", "-c:a", "aac", "-b:a", "96k"]);
+
+    await probeAndRemux(clip.id);
+
+    // A copy, not a re-encode: the stored audio stream is byte-identical.
+    const md5 = async (path: string) => {
+      const proc = Bun.spawn(["ffmpeg", "-loglevel", "error", "-i", path, "-map", "0:a", "-c", "copy", "-f", "md5", "-"], { stdout: "pipe" });
+      const out = await new Response(proc.stdout).text();
+      await proc.exited;
+      return out.trim();
+    };
+    expect(await md5(join(root, "clips", `${clip.id}.mp4`))).toBe(await md5(input));
+  });
+});

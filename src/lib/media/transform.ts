@@ -57,6 +57,11 @@ export type RemuxOptions = {
    * while they decode it — see `shouldStripLeadIn` for when it's safe.
    */
   ignoreEditList?: boolean;
+  /**
+   * Re-encode the audio to AAC while the video is still copied. For audio mp4
+   * players can't take, like Vorbis from WebM or PCM from a .mov.
+   */
+  convertAudio?: boolean;
 };
 
 export async function remuxFaststart(
@@ -69,8 +74,9 @@ export async function remuxFaststart(
 
   // A demuxer option, so it must precede the -i it applies to.
   const inputOptions = options.ignoreEditList ? ["-ignore_editlist", "1"] : [];
+  const audioOptions = options.convertAudio ? ["-c:a", "aac", "-b:a", "192k"] : [];
   await run("remux", input, [
-    ...inputOptions, "-i", input, "-c", "copy", "-movflags", "+faststart", output,
+    ...inputOptions, "-i", input, "-c", "copy", ...audioOptions, "-movflags", "+faststart", output,
   ]);
 
   if (!wroteOutput(output)) {
