@@ -2,12 +2,10 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import type { IgdbGame } from "@/lib/igdb/api";
-import { gameCover, pickerNotice, type SearchState } from "@/lib/games/picker";
+import { gameCover, pickerNotice, typedText, type Picked, type SearchState } from "@/lib/games/picker";
 import type { LocalGame, PickerResults } from "@/lib/games/search";
 
 type Option = { kind: "local"; game: LocalGame } | { kind: "igdb"; game: IgdbGame };
-/** A real game is in the box: its art, or null for one with no cover. */
-type Picked = { cover: string | null };
 
 /** A game search box: your games first, then IGDB's. Arrow keys, Enter, Escape. */
 export function GamePicker({
@@ -19,12 +17,13 @@ export function GamePicker({
   igdbOnly?: boolean;
   onPickLocal?: (game: LocalGame) => void;
   onPickIgdb: (game: IgdbGame) => void;
+  /** Enter on typed text, trimmed. Never called while the box holds a pick. */
   onSubmitText?: (text: string) => void;
   pending?: boolean;
   label: string;
   /** Every keystroke, for a caller that must know someone is typing. */
   onTextChange?: (text: string) => void;
-  /** Leaving the box, with whatever it holds. */
+  /** Leaving the box with typed text, trimmed. Never called while it holds a pick. */
   onBlurText?: (text: string) => void;
 }) {
   const [text, setText] = useState(initial);
@@ -105,8 +104,13 @@ export function GamePicker({
       setOpen(false);
     } else if (event.key === "Enter") {
       event.preventDefault();
-      if (open && active >= 0 && options[active]) pick(options[active]);
-      else onSubmitText?.(text);
+      if (open && active >= 0 && options[active]) {
+        pick(options[active]);
+      } else {
+        setOpen(false);
+        const typed = typedText(text, picked);
+        if (typed !== null) onSubmitText?.(typed);
+      }
     }
   }
 
@@ -138,16 +142,12 @@ export function GamePicker({
             onKeyDown={onKeyDown}
             onBlur={() => {
               setTimeout(() => setOpen(false), 150);
-              onBlurText?.(text);
+              const typed = typedText(text, picked);
+              if (typed !== null) onBlurText?.(typed);
             }}
             onFocus={() => options.length > 0 && setOpen(true)}
           />
         </div>
-        {onSubmitText && (
-          <button type="button" className="button-secondary" disabled={pending} onClick={() => onSubmitText(text)}>
-            Save
-          </button>
-        )}
       </div>
       {!igdbOnly && !open && !picked && text.trim() && (
         <p className="game-picker-hint">New game, not on IGDB</p>

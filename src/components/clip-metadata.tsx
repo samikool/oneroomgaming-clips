@@ -132,6 +132,8 @@ function GameField({ clipId, initial, coverPath }: { clipId: string; initial: st
         pending={pending}
         onPickLocal={(game) => saveText(game.name)}
         onSubmitText={saveText}
+        // Typed but not picked: leaving the box saves it, as on the upload page.
+        onBlurText={(text) => text !== initial && saveText(text)}
         onPickIgdb={(game) =>
           startTransition(async () => {
             const result = await pickIgdbGame(clipId, game.igdbId);

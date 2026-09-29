@@ -63,7 +63,7 @@ function GroupBlock({ group, items }: { group: Group; items: BatchItem[] }) {
               initialPick={pickOf(group.game)}
               onPickLocal={(g) => choose({ kind: "local", id: g.id, name: g.name, cover: gameCover(g) })}
               onPickIgdb={(g) => choose({ kind: "igdb", igdbId: g.igdbId, name: g.name, cover: gameCover(g) })}
-              onSubmitText={(text) => choose(text.trim() ? { kind: "text", name: text.trim() } : null)}
+              onSubmitText={(text) => choose(text ? { kind: "text", name: text } : null)}
               onTextChange={() => touchGroup(group.folder)}
               onBlurText={keepTyped}
             />
@@ -158,7 +158,7 @@ function ClipRow({ item }: { item: BatchItem }) {
             initialPick={pickOf(item.game)}
             onPickLocal={(g) => setItem(item.key, { game: { kind: "local", id: g.id, name: g.name, cover: gameCover(g) } })}
             onPickIgdb={(g) => setItem(item.key, { game: { kind: "igdb", igdbId: g.igdbId, name: g.name, cover: gameCover(g) } })}
-            onSubmitText={(text) => setItem(item.key, { game: text.trim() ? { kind: "text", name: text.trim() } : undefined })}
+            onSubmitText={(text) => setItem(item.key, { game: text ? { kind: "text", name: text } : undefined })}
           />
         </div>
       )}
