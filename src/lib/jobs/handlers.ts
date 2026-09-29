@@ -1,8 +1,8 @@
 import { join } from "node:path";
-import { applyProbe, recordMediaFile, setClipStatus, setClipThumb } from "@/db/clips";
+import { applyProbe, getClip, recordMediaFile, setClipStatus, setClipThumb } from "@/db/clips";
 import { enqueueStage } from "@/db/jobs";
 import type { JobType } from "@/db/schema";
-import { isBrowserPlayable } from "@/lib/media/codecs";
+import { isPlayableAudio, isPlayableVideo } from "@/lib/media/codecs";
 import { removeSourceArtifacts } from "@/lib/media/cleanup";
 import { hasObsLeadIn } from "@/lib/media/editlist";
 import {
@@ -32,7 +32,8 @@ const probe: JobHandler = async (ctx, job) => {
   const info = await probeFile(input);
   applyProbe(ctx.db, job.clipId, info);
 
-  if (!isBrowserPlayable(info.videoCodec, info.audioCodec, info.pixelFormat)) {
+  // Only the video decides: audio a browser can't play is converted by remux.
+  if (!isPlayableVideo(info.videoCodec, info.pixelFormat)) {
     setClipStatus(
       ctx.db,
       job.clipId,
@@ -55,13 +56,15 @@ const remux: JobHandler = async (ctx, job) => {
   // edit list, and players freeze decoding it. Keep it as visible footage
   // instead; every other file is remuxed untouched.
   const stripLeadIn = await hasObsLeadIn(input);
-  await remuxFaststart(input, output, undefined, { ignoreEditList: stripLeadIn });
+  const convertAudio = !isPlayableAudio(getClip(ctx.db, job.clipId)?.audioCodec ?? null);
+  await remuxFaststart(input, output, undefined, { ignoreEditList: stripLeadIn, convertAudio });
 
   const info = await probeFile(output);
 
-  if (stripLeadIn) {
-    // The clip row was filled from the incoming file, whose duration excluded
-    // the lead-in. The stored clip now plays it, so describe that file.
+  if (stripLeadIn || convertAudio) {
+    // The clip row was filled from the incoming file: its duration excluded
+    // the lead-in, and its audio codec was the one replaced. Describe the
+    // stored file instead.
     applyProbe(ctx.db, job.clipId, info);
   }
 
