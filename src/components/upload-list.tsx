@@ -40,7 +40,11 @@ function Status({ item }: { item: BatchItem }) {
         </span>
       );
     case "processing":
-      return (
+      return item.retrying ? (
+        <span className="upload-status">
+          <Spinner label="Retrying" /> Hit a snag, retrying…
+        </span>
+      ) : (
         <span className="upload-status">
           <Spinner label="Processing" /> Processing…
         </span>

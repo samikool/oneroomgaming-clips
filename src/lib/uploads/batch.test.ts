@@ -173,6 +173,19 @@ describe("settleProcessing", () => {
     const next = settleProcessing(before, { c1: "ready", c2: "exploded" });
     expect(next.items.map((i) => i.phase)).toEqual(["uploading", "processing"]);
   });
+
+  it("marks a processing upload as retrying while the server retries it", () => {
+    const next = settleProcessing(batch([item("a", "processing", { clipId: "c1" })]), { c1: "retrying" });
+    expect(next.items[0]).toMatchObject({ phase: "processing", retrying: true });
+  });
+
+  it("clears retrying once the clip is processing again", () => {
+    const next = settleProcessing(
+      batch([item("a", "processing", { clipId: "c1", retrying: true })]),
+      { c1: "processing" },
+    );
+    expect(next.items[0]).toMatchObject({ phase: "processing", retrying: false });
+  });
 });
 
 describe("processingClipIds", () => {

@@ -1,9 +1,17 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull, lte, or } from "drizzle-orm";
 import { ulid } from "ulid";
 import type { Db } from "./client";
 import { jobs, type Job, type JobType } from "./schema";
 
 export const MAX_ATTEMPTS = 3;
+
+/**
+ * How long a failed job waits before retry n (index n - 1). Retrying at once
+ * burned all three attempts inside a second, which is shorter than the SMB
+ * share takes to let go of a just-written file: a hard link to it can't be
+ * opened for about 1.5 s, so probes failed on files that were fine.
+ */
+export const RETRY_DELAYS_MS: readonly number[] = [5_000, 30_000];
 
 export function enqueueJob(
   db: Db,
@@ -23,6 +31,7 @@ export function enqueueJob(
       createdAt: now,
       startedAt: null,
       finishedAt: null,
+      runAfter: null,
     })
     .returning()
     .get();
@@ -40,7 +49,7 @@ export function claimNextJob(db: Db, now: Date = new Date()): Job | undefined {
   const next = db
     .select()
     .from(jobs)
-    .where(eq(jobs.status, "queued"))
+    .where(and(eq(jobs.status, "queued"), or(isNull(jobs.runAfter), lte(jobs.runAfter, now))))
     .orderBy(asc(jobs.createdAt))
     .limit(1)
     .get();
@@ -82,12 +91,14 @@ export function failJob(
   }
 
   const exhausted = job.attempts >= MAX_ATTEMPTS;
+  const delay = RETRY_DELAYS_MS[job.attempts - 1] ?? RETRY_DELAYS_MS.at(-1)!;
 
   db.update(jobs)
     .set({
       status: exhausted ? "failed" : "queued",
       lastError: error,
       finishedAt: exhausted ? now : null,
+      runAfter: exhausted ? null : new Date(now.getTime() + delay),
     })
     .where(eq(jobs.id, id))
     .run();

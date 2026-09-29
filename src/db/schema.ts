@@ -23,6 +23,8 @@ export type User = typeof users.$inferSelect;
 export type ClipStatus =
   | "pending"
   | "processing"
+  /** A pipeline job failed and is waiting out its backoff before another try. */
+  | "retrying"
   | "ready"
   | "needs_transcode"
   | "failed";
@@ -233,6 +235,8 @@ export const jobs = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     startedAt: integer("started_at", { mode: "timestamp_ms" }),
     finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+    /** A retried job is not claimed before this; null means straight away. */
+    runAfter: integer("run_after", { mode: "timestamp_ms" }),
   },
   (t) => [index("jobs_status_created_at_idx").on(t.status, t.createdAt)],
 );

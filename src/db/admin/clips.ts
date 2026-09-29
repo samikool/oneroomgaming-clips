@@ -20,7 +20,7 @@ export type AdminClip = {
   errorMessage: string | null;
 };
 
-export const CLIP_STATUSES: ClipStatus[] = ["pending", "processing", "ready", "needs_transcode", "failed"];
+export const CLIP_STATUSES: ClipStatus[] = ["pending", "processing", "retrying", "ready", "needs_transcode", "failed"];
 
 /**
  * Every clip, whatever its status, newest first, a page at a time. `q` goes

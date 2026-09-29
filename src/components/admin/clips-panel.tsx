@@ -13,7 +13,7 @@ import { useRealtime } from "@/lib/realtime/use-realtime";
 import { UserName } from "../user-name";
 import { When } from "./when";
 
-const STATUSES = ["pending", "processing", "ready", "needs_transcode", "failed"] as const;
+const STATUSES = ["pending", "processing", "retrying", "ready", "needs_transcode", "failed"] as const;
 
 function href(params: { q?: string; status?: string; page?: number }): string {
   const search = new URLSearchParams({ s: "clips" });

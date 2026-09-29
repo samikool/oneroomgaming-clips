@@ -43,6 +43,13 @@ describe("probeFile", () => {
     expect(probeFile(junk)).rejects.toThrow(ProbeError);
   });
 
+  it("says why ffprobe failed, not just its exit code", async () => {
+    const junk = join(dir, "junk-reason.mp4");
+    writeFileSync(junk, "not a video");
+
+    expect(probeFile(junk)).rejects.toThrow(/Invalid data found/);
+  });
+
   it("throws ProbeError for a missing file", async () => {
     expect(probeFile(join(dir, "nope.mp4"))).rejects.toThrow(ProbeError);
   });

@@ -47,20 +47,23 @@ export async function probeFile(path: string): Promise<MediaInfo> {
 
   const proc = Bun.spawn(
     [
-      "ffprobe", "-v", "quiet", "-print_format", "json",
+      "ffprobe", "-v", "error", "-print_format", "json",
       "-show_format", "-show_streams", path,
     ],
     { stdout: "pipe", stderr: "pipe" },
   );
 
-  const [stdout, , exitCode] = await Promise.all([
+  const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
   ]);
 
   if (exitCode !== 0) {
-    throw new ProbeError(path, `exit code ${exitCode}`);
+    // A bare exit code once hid an SMB open failure ("Invalid argument") for
+    // a whole import, so the reason goes into the job's error.
+    const reason = stderr.trim().split("\n").at(-1);
+    throw new ProbeError(path, reason ? `exit code ${exitCode}: ${reason}` : `exit code ${exitCode}`);
   }
 
   let parsed: { streams?: FfStream[]; format?: Record<string, string> & { tags?: Record<string, string> } };

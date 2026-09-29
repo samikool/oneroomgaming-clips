@@ -9,6 +9,9 @@ import { searchClipIds } from "@/db/search";
 import { clips, jobs } from "@/db/schema";
 import { ADMIN_PAGE_SIZE, listAdminClips, reprocessClip, updateClipTitle } from "./clips";
 
+/** A clock past every retry backoff, so a test can exhaust a job at once. */
+const pastBackoff = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
 let db: Db;
 let sam: string;
 
@@ -29,7 +32,7 @@ function failedClip(title = "broken"): string {
   const id = make(title);
   enqueueStage(db, id, "probe");
   for (let i = 0; i < MAX_ATTEMPTS; i += 1) {
-    const job = claimNextJob(db)!;
+    const job = claimNextJob(db, pastBackoff)!;
     failJob(db, job.id, "ffprobe exploded");
   }
   setClipStatus(db, id, "failed", "ffprobe exploded");
@@ -103,7 +106,7 @@ describe("reprocessClip", () => {
     claimNextJob(db);
     completeJob(db, probe.id);
     const remux = enqueueStage(db, id, "remux");
-    for (let i = 0; i < MAX_ATTEMPTS; i += 1) failJob(db, claimNextJob(db)!.id, "remux died");
+    for (let i = 0; i < MAX_ATTEMPTS; i += 1) failJob(db, claimNextJob(db, pastBackoff)!.id, "remux died");
     setClipStatus(db, id, "failed", "remux died");
 
     expect(reprocessClip(db, id)).toEqual({ ok: true });

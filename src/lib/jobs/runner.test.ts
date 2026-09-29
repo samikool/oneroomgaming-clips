@@ -7,6 +7,9 @@ import { runOnce, startRunner } from "@/lib/jobs/runner";
 
 let db: Db;
 
+/** Attempt `i`'s clock: a day apart, so every backoff before it has elapsed. */
+const afterBackoff = (i: number) => new Date(Date.now() + i * 24 * 60 * 60 * 1000);
+
 beforeEach(() => {
   db = createDb(":memory:");
 });
@@ -21,7 +24,7 @@ describe("runOnce", () => {
     enqueueJob(db, clip.id, "transcode");
 
     for (let i = 0; i < 3; i += 1) {
-      expect(await runOnce({ db, env: {} })).toBe(true);
+      expect(await runOnce({ db, env: {} }, afterBackoff(i))).toBe(true);
     }
 
     const job = db.select().from(jobsTable).get();
@@ -35,13 +38,34 @@ describe("runOnce", () => {
 
     // First attempt of 3: the job is requeued, not permanently failed. The
     // clip must not be told it's failed while a retry is still coming.
-    expect(await runOnce({ db, env: {} })).toBe(true);
+    expect(await runOnce({ db, env: {} }, afterBackoff(0))).toBe(true);
     expect(getClip(db, clip.id)?.status).not.toBe("failed");
 
     // Exhaust the remaining attempts; only now is the clip truly stuck.
-    expect(await runOnce({ db, env: {} })).toBe(true);
-    expect(await runOnce({ db, env: {} })).toBe(true);
+    expect(await runOnce({ db, env: {} }, afterBackoff(1))).toBe(true);
+    expect(await runOnce({ db, env: {} }, afterBackoff(2))).toBe(true);
     expect(getClip(db, clip.id)?.status).toBe("failed");
+  });
+
+  it("tells the clip it is retrying while a retry is still coming", async () => {
+    const clip = createClip(db, { title: "a", originalFilename: "a.mp4", sizeBytes: 1 });
+    enqueueJob(db, clip.id, "transcode");
+
+    await runOnce({ db, env: {} }, afterBackoff(0));
+
+    const row = getClip(db, clip.id);
+    expect(row?.status).toBe("retrying");
+    expect(row?.errorMessage).toContain("not implemented");
+  });
+
+  it("does not retry before the backoff has elapsed", async () => {
+    const clip = createClip(db, { title: "a", originalFilename: "a.mp4", sizeBytes: 1 });
+    enqueueJob(db, clip.id, "transcode");
+    const t0 = afterBackoff(0);
+
+    await runOnce({ db, env: {} }, t0);
+
+    expect(await runOnce({ db, env: {} }, t0)).toBe(false);
   });
 
   it("does not throw when a handler throws", async () => {
