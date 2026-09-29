@@ -34,6 +34,8 @@ export type BatchItem = {
   sent: number;
   clipId?: string;
   message?: string;
+  /** Processing, but the server's last attempt failed and it will try again. */
+  retrying?: boolean;
   /** Relative to what was dropped or chosen; the folder groups it. */
   path: string;
   folder: string;
@@ -216,9 +218,9 @@ export function processingClipIds(batch: Batch): string[] {
 }
 
 /**
- * Applies clip statuses fetched from the server, for when the pushed update
- * was missed (the socket was down at the moment a clip finished). Only a
- * processing upload moves, and only to a final state.
+ * Applies clip statuses, pushed or fetched after a missed push (the socket was
+ * down at the moment a clip changed). Only a processing upload moves: to a
+ * final state, or in and out of retrying while the server retries it.
  */
 export function settleProcessing(batch: Batch, statuses: Record<string, string>): Batch {
   return {
@@ -226,9 +228,19 @@ export function settleProcessing(batch: Batch, statuses: Record<string, string>)
     items: batch.items.map((i) => {
       const status = i.clipId ? statuses[i.clipId] : undefined;
 
-      return i.phase === "processing" && (DONE as readonly string[]).includes(status ?? "")
-        ? { ...i, phase: status as BatchPhase }
-        : i;
+      if (i.phase !== "processing" || status === undefined) {
+        return i;
+      }
+
+      if ((DONE as readonly string[]).includes(status)) {
+        return { ...i, phase: status as BatchPhase, retrying: false };
+      }
+
+      if (status === "retrying" || status === "processing" || status === "pending") {
+        return { ...i, retrying: status === "retrying" };
+      }
+
+      return i;
     }),
   };
 }

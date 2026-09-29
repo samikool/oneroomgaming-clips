@@ -189,18 +189,13 @@ export function UploadsProvider({ me, children }: { me: string; children: React.
   };
 
   // Processing status arrives pushed; "failed" is only sent once the server's
-  // own retries are spent, so it is final.
+  // own retries are spent, so it is final. "retrying" comes before each retry.
   useRealtime(["grid"], (message) => {
     if (message.t !== "clip.updated") {
       return;
     }
 
-    const item = batchRef.current.items.find((i) => i.clipId === message.clip.id);
-    const status = message.clip.status;
-
-    if (item && (status === "ready" || status === "failed" || status === "needs_transcode")) {
-      patch(item.key, { phase: status });
-    }
+    commit(rules.settleProcessing(batchRef.current, { [message.clip.id]: message.clip.status }));
   });
 
   // The safety net for a missed push: `hello` arrives on every (re)connect,

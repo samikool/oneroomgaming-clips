@@ -6,6 +6,9 @@ import { claimNextJob, completeJob, enqueueJob, failJob, MAX_ATTEMPTS } from "@/
 import { jobs } from "@/db/schema";
 import { cancelJob, getAdminJob, listJobs, retryJob } from "./jobs";
 
+/** A clock past every retry backoff, so a test can exhaust a job at once. */
+const pastBackoff = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
 let db: Db;
 let clipId: string;
 const DAY = 86_400_000;
@@ -19,7 +22,7 @@ const row = (id: string) => db.select().from(jobs).where(eq(jobs.id, id)).get()!
 
 function exhausted(): string {
   const job = enqueueJob(db, clipId, "probe");
-  for (let i = 0; i < MAX_ATTEMPTS; i += 1) failJob(db, claimNextJob(db)!.id, "boom");
+  for (let i = 0; i < MAX_ATTEMPTS; i += 1) failJob(db, claimNextJob(db, pastBackoff)!.id, "boom");
   return job.id;
 }
 

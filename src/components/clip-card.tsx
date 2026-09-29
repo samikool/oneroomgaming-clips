@@ -7,6 +7,7 @@ import { PersonChip } from "./person-chip";
 const STATUS_LABEL: Partial<Record<ClipStatus, string>> = {
   pending: "Queued",
   processing: "Processing",
+  retrying: "Retrying",
   needs_transcode: "Unsupported format",
   failed: "Failed",
 };

@@ -1,5 +1,5 @@
 import { claimNextJob, completeJob, failJob } from "@/db/jobs";
-import { setClipStatus } from "@/db/clips";
+import { getClip, setClipStatus } from "@/db/clips";
 import { removeSourceArtifacts } from "@/lib/media/cleanup";
 import { announceClipUpdated } from "@/lib/events/clips";
 import { getAdminJob } from "@/db/admin/jobs";
@@ -19,8 +19,8 @@ function announceJob(ctx: JobContext, id: string): void {
   }
 }
 
-export async function runOnce(ctx: JobContext): Promise<boolean> {
-  const job = claimNextJob(ctx.db);
+export async function runOnce(ctx: JobContext, now: Date = new Date()): Promise<boolean> {
+  const job = claimNextJob(ctx.db, now);
 
   if (!job) {
     return false;
@@ -28,13 +28,23 @@ export async function runOnce(ctx: JobContext): Promise<boolean> {
 
   announceJob(ctx, job.id);
 
+  // The retry is underway, so the clip is processing again. Announced now: a
+  // long stage would otherwise show "Retrying" for the whole attempt.
+  if (getClip(ctx.db, job.clipId)?.status === "retrying") {
+    setClipStatus(ctx.db, job.clipId, "processing");
+    await announceClipUpdated(ctx.db, job.clipId, ctx.env);
+  }
+
   try {
     await handlers[job.type](ctx, job);
     completeJob(ctx.db, job.id);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const exhausted = failJob(ctx.db, job.id, message);
-    if (exhausted) {
+    const exhausted = failJob(ctx.db, job.id, message, now);
+    if (!exhausted) {
+      // Uploaders see this rather than a spinner that silently restarts.
+      setClipStatus(ctx.db, job.clipId, "retrying", message);
+    } else {
       // Retries are spent; the clip is permanently stuck, and its
       // pre-publish source bytes will never be consumed by a later stage.
       setClipStatus(ctx.db, job.clipId, "failed", message);

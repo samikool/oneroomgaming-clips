@@ -111,7 +111,7 @@ export function cancelJob(db: Db, id: string, now: Date = new Date()): boolean {
 
     db.update(clips)
       .set({ status: "failed", errorMessage: CANCELLED })
-      .where(and(eq(clips.id, row.clipId), inArray(clips.status, ["pending", "processing"])))
+      .where(and(eq(clips.id, row.clipId), inArray(clips.status, ["pending", "processing", "retrying"])))
       .run();
 
     return true;
